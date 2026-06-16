@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { ShoppingCart, Heart, Share2, Search, Menu } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { useLocation } from 'wouter';
+import { getImageUrl } from '@/lib/imageMap';
 
 export default function Home() {
   const [, navigate] = useLocation();
@@ -156,13 +157,14 @@ export default function Home() {
 
                   {/* Right side - Image and button */}
                   <div className="relative">
-                    {pizza.imageUrl && (
+                    <div className="w-24 h-24 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden">
                       <img
-                        src={pizza.imageUrl}
+                        src={getImageUrl(pizza.name)}
                         alt={pizza.name}
+                        loading="lazy"
                         className="w-24 h-24 rounded-lg object-cover"
                       />
-                    )}
+                    </div>
                     <button
                       onClick={() => handleAddToCart(pizza.id)}
                       className="absolute bottom-0 right-0 w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center text-black font-bold hover:bg-yellow-500 transition-colors shadow-lg"

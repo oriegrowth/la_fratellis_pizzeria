@@ -75,3 +75,11 @@
 ## Status Final
 ✅ **REDESIGN COMPLETO** - Interface iFood/Uber Eats implementada com sucesso
 ✅ **PRONTO PARA PUBLICAÇÃO** - Web App funcional e otimizado para celular
+
+
+## Otimização de Performance para Mobile
+- [x] Gerar miniaturas otimizadas das imagens (96x96px, comprimidas)
+- [x] Implementar lazy loading das imagens
+- [x] Adicionar placeholders enquanto imagens carregam
+- [x] Testar velocidade de carregamento em mobile
+- [x] Validar compra por impulso com interface rápida
