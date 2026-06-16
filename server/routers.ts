@@ -2,9 +2,10 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import { z } from "zod";
+import * as db from "./db";
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -17,12 +18,98 @@ export const appRouter = router({
     }),
   }),
 
-  // TODO: add feature routers here, e.g.
-  // todo: router({
-  //   list: protectedProcedure.query(({ ctx }) =>
-  //     db.getUserTodos(ctx.user.id)
-  //   ),
-  // }),
+  // Pizza routes
+  pizzas: router({
+    getAll: publicProcedure.query(async () => {
+      return await db.getAllPizzas();
+    }),
+    getByCategory: publicProcedure
+      .input(z.enum(['classica', 'especial', 'doce']))
+      .query(async ({ input }) => {
+        return await db.getPizzasByCategory(input);
+      }),
+    getById: publicProcedure
+      .input(z.number())
+      .query(async ({ input }) => {
+        return await db.getPizzaById(input);
+      }),
+  }),
+
+  // Cart routes
+  cart: router({
+    getItems: publicProcedure
+      .input(z.object({ sessionId: z.string() }))
+      .query(async ({ input }) => {
+        return await db.getCartItems(input.sessionId);
+      }),
+    addItem: publicProcedure
+      .input(z.object({
+        sessionId: z.string(),
+        pizzaId1: z.number(),
+        pizzaId2: z.number().optional(),
+        size: z.enum(['small', 'large']),
+        quantity: z.number().min(1),
+        price: z.number().min(0),
+      }))
+      .mutation(async ({ input }) => {
+        return await db.addToCart(input);
+      }),
+    removeItem: publicProcedure
+      .input(z.number())
+      .mutation(async ({ input }) => {
+        return await db.removeFromCart(input);
+      }),
+    clear: publicProcedure
+      .input(z.string())
+      .mutation(async ({ input }) => {
+        return await db.clearCart(input);
+      }),
+  }),
+
+  // Customer routes
+  customers: router({
+    getByPhone: publicProcedure
+      .input(z.string())
+      .query(async ({ input }) => {
+        return await db.getCustomerByPhone(input);
+      }),
+    createOrUpdate: publicProcedure
+      .input(z.object({
+        phone: z.string(),
+        name: z.string(),
+        address: z.string(),
+        addressNumber: z.string(),
+        addressReference: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return await db.createOrUpdateCustomer(input);
+      }),
+  }),
+
+  // Order routes
+  orders: router({
+    create: publicProcedure
+      .input(z.object({
+        customerId: z.number().optional(),
+        phone: z.string(),
+        name: z.string(),
+        address: z.string(),
+        addressNumber: z.string(),
+        addressReference: z.string().optional(),
+        items: z.string(), // JSON string
+        totalPrice: z.number().min(0),
+      }))
+      .mutation(async ({ input }) => {
+        return await db.createOrder(input);
+      }),
+  }),
+
+  // Promotions routes
+  promotions: router({
+    getActive: publicProcedure.query(async () => {
+      return await db.getActivePromotions();
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
