@@ -6,35 +6,14 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.6%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.6%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.6%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 220 90% 56%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 220 90% 56%;
-    --radius: 0.5rem;
-
-    /* La Fratellis Brand Colors */
-    --primary-red: 0 100% 50%;
-    --primary-green: 120 100% 25%;
-    --primary-white: 0 0% 100%;
-  }
-
-  * {
-    @apply border-border;
+    --primary-red: #dc2626;
+    --primary-green: #15803d;
+    --primary-white: #ffffff;
   }
 
   body {
-    @apply bg-background text-foreground font-sans;
+    background-color: #ffffff;
+    color: #1a1a1a;
     font-family: 'Poppins', sans-serif;
   }
 
@@ -44,24 +23,63 @@
 }
 
 @layer components {
-  .container {
-    @apply max-w-7xl mx-auto px-4;
+  .btn-primary {
+    background-color: #dc2626;
+    color: white;
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+    cursor: pointer;
+    border: none;
   }
 
-  .btn-primary {
-    @apply bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 active:scale-95;
+  .btn-primary:hover {
+    background-color: #b91c1c;
+    transform: scale(1.05);
+  }
+
+  .btn-primary:active {
+    transform: scale(0.95);
   }
 
   .btn-secondary {
-    @apply bg-green-700 hover:bg-green-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 active:scale-95;
+    background-color: #15803d;
+    color: white;
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+    cursor: pointer;
+    border: none;
+  }
+
+  .btn-secondary:hover {
+    background-color: #166534;
+    transform: scale(1.05);
   }
 
   .pizza-card {
-    @apply bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer transform hover:-translate-y-1;
+    background-color: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .pizza-card:hover {
+    box-shadow: 0 20px 25px rgba(0, 0, 0, 0.15);
+    transform: translateY(-4px);
   }
 
   .badge-promo {
-    @apply bg-red-600 text-white px-3 py-1 rounded-full text-sm font-semibold;
+    background-color: #dc2626;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
   }
 
   .flex {
