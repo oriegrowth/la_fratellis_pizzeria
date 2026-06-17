@@ -1,4 +1,5 @@
 export type PizzaCategory = "classica" | "especial" | "doce";
+export type ProductCategory = "bebida";
 
 export type MenuPizza = {
   id: number;
@@ -25,10 +26,25 @@ export type MenuPromotion = {
   updatedAt: Date;
 };
 
+export type MenuProduct = {
+  id: number;
+  name: string;
+  description: string | null;
+  category: ProductCategory;
+  price: number;
+  imageUrl: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 const now = new Date("2026-06-16T12:00:00.000Z");
 
 const image = (key: string) => {
   return `/images/pizzas/${key}.webp`;
+};
+
+const beverageImage = (key: string) => {
+  return `/images/beverages/${key}.svg`;
 };
 
 export const fallbackPizzas: MenuPizza[] = [
@@ -78,4 +94,19 @@ export const fallbackPromotions: MenuPromotion[] = [
     createdAt: now,
     updatedAt: now,
   },
+];
+
+export const fallbackProducts: MenuProduct[] = [
+  { id: 1, name: "Coca-Cola 2L", description: "Refrigerante Coca-Cola normal, garrafa 2 litros", category: "bebida", price: 17, imageUrl: beverageImage("coca-cola-2l"), createdAt: now, updatedAt: now },
+  { id: 2, name: "Coca-Cola Zero 2L", description: "Refrigerante Coca-Cola Zero, garrafa 2 litros", category: "bebida", price: 17, imageUrl: beverageImage("coca-cola-zero-2l"), createdAt: now, updatedAt: now },
+  { id: 3, name: "Guarana Antarctica 2L", description: "Refrigerante Guarana Antarctica normal, garrafa 2 litros", category: "bebida", price: 17, imageUrl: beverageImage("guarana-2l"), createdAt: now, updatedAt: now },
+  { id: 4, name: "Guarana Antarctica Zero 2L", description: "Refrigerante Guarana Antarctica Zero, garrafa 2 litros", category: "bebida", price: 17, imageUrl: beverageImage("guarana-zero-2l"), createdAt: now, updatedAt: now },
+  { id: 5, name: "Pepsi 2L", description: "Refrigerante Pepsi normal, garrafa 2 litros", category: "bebida", price: 17, imageUrl: beverageImage("pepsi-2l"), createdAt: now, updatedAt: now },
+  { id: 6, name: "Pepsi Zero 2L", description: "Refrigerante Pepsi Zero, garrafa 2 litros", category: "bebida", price: 17, imageUrl: beverageImage("pepsi-zero-2l"), createdAt: now, updatedAt: now },
+  { id: 7, name: "Coca-Cola lata 350ml", description: "Refrigerante Coca-Cola normal, lata 350 ml", category: "bebida", price: 7, imageUrl: beverageImage("coca-cola-lata"), createdAt: now, updatedAt: now },
+  { id: 8, name: "Coca-Cola Zero lata 350ml", description: "Refrigerante Coca-Cola Zero, lata 350 ml", category: "bebida", price: 7, imageUrl: beverageImage("coca-cola-zero-lata"), createdAt: now, updatedAt: now },
+  { id: 9, name: "Guarana Antarctica lata 350ml", description: "Refrigerante Guarana Antarctica normal, lata 350 ml", category: "bebida", price: 7, imageUrl: beverageImage("guarana-lata"), createdAt: now, updatedAt: now },
+  { id: 10, name: "Guarana Antarctica Zero lata 350ml", description: "Refrigerante Guarana Antarctica Zero, lata 350 ml", category: "bebida", price: 7, imageUrl: beverageImage("guarana-zero-lata"), createdAt: now, updatedAt: now },
+  { id: 11, name: "Pepsi lata 350ml", description: "Refrigerante Pepsi normal, lata 350 ml", category: "bebida", price: 7, imageUrl: beverageImage("pepsi-lata"), createdAt: now, updatedAt: now },
+  { id: 12, name: "Pepsi Zero lata 350ml", description: "Refrigerante Pepsi Zero, lata 350 ml", category: "bebida", price: 7, imageUrl: beverageImage("pepsi-zero-lata"), createdAt: now, updatedAt: now },
 ];

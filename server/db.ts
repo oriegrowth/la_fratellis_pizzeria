@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, pizzas, customers, cartItems, orders, promotions } from "../drizzle/schema";
+import { InsertUser, users, pizzas, products, customers, cartItems, orders, promotions } from "../drizzle/schema";
 import { ENV } from './_core/env';
-import { fallbackPizzas, fallbackPromotions } from "@shared/menuData";
+import { fallbackPizzas, fallbackProducts, fallbackPromotions } from "@shared/menuData";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _sql: ReturnType<typeof postgres> | null = null;
@@ -13,9 +13,11 @@ let memoryOrderId = 1;
 const memoryCartItems: Array<{
   id: number;
   sessionId: string;
-  pizzaId1: number;
+  itemType: "pizza" | "product";
+  pizzaId1: number | null;
   pizzaId2: number | null;
-  size: "small" | "large";
+  productId: number | null;
+  size: "small" | "large" | null;
   quantity: number;
   price: string;
   createdAt: Date;
@@ -159,6 +161,33 @@ export async function getPizzaById(id: number) {
   return result.length > 0 ? result[0] : fallbackPizzas.find(pizza => pizza.id === id) ?? null;
 }
 
+// Product queries
+export async function getAllProducts() {
+  const db = await getDb();
+  if (!db) return fallbackProducts;
+
+  try {
+    const result = await db.select().from(products);
+    return result.length > 0 ? result : fallbackProducts;
+  } catch (error) {
+    console.warn("[Database] Cannot get products, using fallback:", error);
+    return fallbackProducts;
+  }
+}
+
+export async function getProductById(id: number) {
+  const db = await getDb();
+  if (!db) return fallbackProducts.find(product => product.id === id) ?? null;
+
+  try {
+    const result = await db.select().from(products).where(eq(products.id, id)).limit(1);
+    return result.length > 0 ? result[0] : fallbackProducts.find(product => product.id === id) ?? null;
+  } catch (error) {
+    console.warn("[Database] Cannot get product, using fallback:", error);
+    return fallbackProducts.find(product => product.id === id) ?? null;
+  }
+}
+
 // Customer queries
 export async function getCustomerByPhone(phone: string) {
   const db = await getDb();
@@ -230,21 +259,27 @@ export async function getCartItems(sessionId: string) {
 
 export async function addToCart(data: {
   sessionId: string;
-  pizzaId1: number;
+  itemType?: 'pizza' | 'product';
+  pizzaId1?: number;
   pizzaId2?: number;
-  size: 'small' | 'large';
+  productId?: number;
+  size?: 'small' | 'large';
   quantity: number;
   price: number;
 }) {
+  const itemType = data.itemType ?? 'pizza';
+
   const db = await getDb();
   if (!db) {
     const now = new Date();
     const item = {
       id: memoryCartId++,
       sessionId: data.sessionId,
-      pizzaId1: data.pizzaId1,
+      itemType,
+      pizzaId1: data.pizzaId1 || null,
       pizzaId2: data.pizzaId2 || null,
-      size: data.size,
+      productId: data.productId || null,
+      size: data.size || null,
       quantity: data.quantity,
       price: data.price.toString(),
       createdAt: now,
@@ -255,9 +290,11 @@ export async function addToCart(data: {
   }
   const result = await db.insert(cartItems).values([{
     sessionId: data.sessionId,
-    pizzaId1: data.pizzaId1,
+    itemType,
+    pizzaId1: data.pizzaId1 || null,
     pizzaId2: data.pizzaId2 || null,
-    size: data.size,
+    productId: data.productId || null,
+    size: data.size || null,
     quantity: data.quantity,
     price: data.price.toString(),
   }]).returning();

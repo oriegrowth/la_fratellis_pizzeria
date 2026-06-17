@@ -17,6 +17,12 @@ EXCEPTION
 END $$;
 
 DO $$ BEGIN
+  CREATE TYPE cart_item_type AS ENUM ('pizza', 'product');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
   CREATE TYPE order_status AS ENUM ('pending', 'sent', 'completed', 'cancelled');
 EXCEPTION
   WHEN duplicate_object THEN null;
@@ -47,6 +53,17 @@ CREATE TABLE IF NOT EXISTS pizzas (
   "updatedAt" timestamp NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS products (
+  id serial PRIMARY KEY,
+  name varchar(100) NOT NULL,
+  description text,
+  category varchar(50) NOT NULL,
+  price numeric(10, 2) NOT NULL,
+  "imageUrl" varchar(500) NOT NULL,
+  "createdAt" timestamp NOT NULL DEFAULT now(),
+  "updatedAt" timestamp NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS customers (
   id serial PRIMARY KEY,
   phone varchar(20) NOT NULL UNIQUE,
@@ -61,9 +78,11 @@ CREATE TABLE IF NOT EXISTS customers (
 CREATE TABLE IF NOT EXISTS "cartItems" (
   id serial PRIMARY KEY,
   "sessionId" varchar(100) NOT NULL,
-  "pizzaId1" integer NOT NULL,
+  "itemType" cart_item_type NOT NULL DEFAULT 'pizza',
+  "pizzaId1" integer,
   "pizzaId2" integer,
-  size pizza_size NOT NULL,
+  "productId" integer,
+  size pizza_size,
   quantity integer NOT NULL DEFAULT 1,
   price numeric(10, 2) NOT NULL,
   "createdAt" timestamp NOT NULL DEFAULT now(),
@@ -114,6 +133,11 @@ FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 DROP TRIGGER IF EXISTS set_pizzas_updated_at ON pizzas;
 CREATE TRIGGER set_pizzas_updated_at
 BEFORE UPDATE ON pizzas
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS set_products_updated_at ON products;
+CREATE TRIGGER set_products_updated_at
+BEFORE UPDATE ON products
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 DROP TRIGGER IF EXISTS set_customers_updated_at ON customers;

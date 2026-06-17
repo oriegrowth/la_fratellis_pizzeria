@@ -13,6 +13,7 @@ const categories = [
   { id: "classica", label: "Classicas" },
   { id: "especial", label: "Especiais" },
   { id: "doce", label: "Doces" },
+  { id: "bebida", label: "Bebidas" },
 ];
 
 function formatCurrency(value: unknown) {
@@ -27,6 +28,7 @@ export default function Home({ sessionId }: HomeProps) {
   const [cartCount, setCartCount] = useState(0);
 
   const { data: pizzas = [] } = trpc.pizzas.getAll.useQuery();
+  const { data: products = [] } = trpc.products.getAll.useQuery();
   const { data: promotions = [] } = trpc.promotions.getActive.useQuery();
   const { data: cartItems = [] } = trpc.cart.getItems.useQuery({ sessionId });
 
@@ -47,6 +49,22 @@ export default function Home({ sessionId }: HomeProps) {
       return matchesCategory && matchesSearch;
     });
   }, [pizzas, selectedCategory, searchTerm]);
+
+  const filteredProducts = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    return products.filter((product: any) => {
+      const matchesCategory = selectedCategory === "all" || product.category === selectedCategory;
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        product.name.toLowerCase().includes(normalizedSearch) ||
+        (product.description ?? "").toLowerCase().includes(normalizedSearch);
+
+      return matchesCategory && matchesSearch;
+    });
+  }, [products, selectedCategory, searchTerm]);
+
+  const hasMenuItems = filteredPizzas.length > 0 || filteredProducts.length > 0;
 
   return (
     <div className="min-h-screen bg-white text-stone-950">
@@ -150,9 +168,9 @@ export default function Home({ sessionId }: HomeProps) {
             </button>
           </div>
 
-          {filteredPizzas.length === 0 ? (
+          {!hasMenuItems ? (
             <div className="rounded-lg border border-stone-200 bg-white py-10 text-center">
-              <p className="text-stone-500">Nenhuma pizza encontrada</p>
+              <p className="text-stone-500">Nenhum item encontrado</p>
             </div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
@@ -185,6 +203,41 @@ export default function Home({ sessionId }: HomeProps) {
                       onClick={() => navigate("/menu")}
                       className="absolute -bottom-2 -right-2 grid h-8 w-8 place-items-center rounded-full bg-red-600 text-white shadow-md hover:bg-red-700"
                       aria-label={`Adicionar ${pizza.name}`}
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {filteredProducts.map((product: any) => (
+                <div
+                  key={`product-${product.id}`}
+                  className="flex gap-4 rounded-lg border border-stone-200 bg-white p-3 shadow-sm transition hover:border-red-200 hover:shadow-md"
+                >
+                  <div className="min-w-0 flex-1">
+                    <h3 className="mb-1 text-base font-bold">{product.name}</h3>
+                    <p className="mb-3 line-clamp-2 text-sm text-stone-600">{product.description}</p>
+                    <p className="text-xs font-medium uppercase text-stone-500">Unidade</p>
+                    <p className="text-lg font-bold text-red-700">{formatCurrency(product.price)}</p>
+                  </div>
+
+                  <div className="relative h-24 w-24 shrink-0">
+                    <div className="h-24 w-24 overflow-hidden rounded-lg bg-stone-100">
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-cover"
+                        onError={(event) => {
+                          event.currentTarget.src = placeholderDataUrl();
+                        }}
+                      />
+                    </div>
+                    <button
+                      onClick={() => navigate("/menu")}
+                      className="absolute -bottom-2 -right-2 grid h-8 w-8 place-items-center rounded-full bg-red-600 text-white shadow-md hover:bg-red-700"
+                      aria-label={`Adicionar ${product.name}`}
                     >
                       <Plus size={16} />
                     </button>

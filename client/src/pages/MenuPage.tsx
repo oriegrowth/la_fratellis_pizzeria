@@ -11,13 +11,14 @@ interface MenuPageProps {
   sessionId: string;
 }
 
-type Category = "classica" | "especial" | "doce";
+type Category = "classica" | "especial" | "doce" | "bebida";
 type Size = "small" | "large";
 
 const categoryLabels: Record<Category, string> = {
   classica: "Classicas",
   especial: "Especiais",
   doce: "Doces",
+  bebida: "Bebidas",
 };
 
 function formatCurrency(value: unknown) {
@@ -46,6 +47,7 @@ export default function MenuPage({ sessionId }: MenuPageProps) {
 
   const utils = trpc.useUtils();
   const { data: allPizzas = [] } = trpc.pizzas.getAll.useQuery();
+  const { data: products = [] } = trpc.products.getAll.useQuery();
   const { data: cartItems = [] } = trpc.cart.getItems.useQuery({ sessionId });
   const addToCartMutation = trpc.cart.addItem.useMutation({
     onSuccess: async () => {
@@ -58,6 +60,7 @@ export default function MenuPage({ sessionId }: MenuPageProps) {
     () => allPizzas.filter((pizza: any) => pizza.category === selectedCategory),
     [allPizzas, selectedCategory],
   );
+  const beverages = useMemo(() => products.filter((product: any) => product.category === "bebida"), [products]);
 
   const halfPizza1 = allPizzas.find((pizza: any) => pizza.id === halfPizza1Id);
   const halfPizza2 = allPizzas.find((pizza: any) => pizza.id === halfPizza2Id);
@@ -138,6 +141,18 @@ export default function MenuPage({ sessionId }: MenuPageProps) {
     setHalfMode(false);
   };
 
+  const addProduct = async (product: any) => {
+    await addToCartMutation.mutateAsync({
+      sessionId,
+      itemType: "product",
+      productId: product.id,
+      quantity: 1,
+      price: Number(product.price),
+    });
+
+    toast.success(`${product.name} adicionado ao carrinho`);
+  };
+
   const updateQuantity = (pizzaId: number, delta: number) => {
     const current = normalQuantity[pizzaId] ?? 1;
     setNormalQuantity({ ...normalQuantity, [pizzaId]: Math.max(1, current + delta) });
@@ -187,30 +202,70 @@ export default function MenuPage({ sessionId }: MenuPageProps) {
             ))}
           </div>
 
-          <div className="mb-4 rounded-lg border border-red-100 bg-white p-4 shadow-sm">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="flex items-center gap-2 text-lg font-bold">
-                  <SplitSquareHorizontal size={20} className="text-red-700" />
-                  Pizza meio a meio
-                </h2>
-                <p className="mt-1 text-sm text-stone-600">
-                  Escolha dois sabores. O valor aplicado sera o maior preco entre eles no tamanho escolhido.
-                </p>
+          {selectedCategory !== "bebida" && (
+            <div className="mb-4 rounded-lg border border-red-100 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="flex items-center gap-2 text-lg font-bold">
+                    <SplitSquareHorizontal size={20} className="text-red-700" />
+                    Pizza meio a meio
+                  </h2>
+                  <p className="mt-1 text-sm text-stone-600">
+                    Escolha dois sabores. O valor aplicado sera o maior preco entre eles no tamanho escolhido.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => {
+                    setHalfMode(!halfMode);
+                    if (halfMode) resetHalfSelection();
+                  }}
+                  className={halfMode ? "bg-stone-800 text-white hover:bg-stone-900" : "bg-red-600 text-white hover:bg-red-700"}
+                >
+                  {halfMode ? "Cancelar meio a meio" : "Montar meio a meio"}
+                </Button>
               </div>
-              <Button
-                onClick={() => {
-                  setHalfMode(!halfMode);
-                  if (halfMode) resetHalfSelection();
-                }}
-                className={halfMode ? "bg-stone-800 text-white hover:bg-stone-900" : "bg-red-600 text-white hover:bg-red-700"}
-              >
-                {halfMode ? "Cancelar meio a meio" : "Montar meio a meio"}
-              </Button>
             </div>
-          </div>
+          )}
 
-          {pizzasByCategory.length === 0 ? (
+          {selectedCategory === "bebida" ? (
+            beverages.length === 0 ? (
+              <div className="rounded-lg border border-stone-200 bg-white py-12 text-center text-stone-500">
+                Nenhuma bebida encontrada.
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {beverages.map((product: any) => (
+                  <Card key={product.id} className="overflow-hidden border border-stone-200 bg-white shadow-sm">
+                    <div className="relative h-40 bg-stone-100">
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        onError={(event) => {
+                          event.currentTarget.src = placeholderDataUrl();
+                        }}
+                      />
+                    </div>
+
+                    <div className="space-y-3 p-4">
+                      <div>
+                        <h3 className="text-lg font-bold">{product.name}</h3>
+                        <p className="mt-1 line-clamp-2 text-sm text-stone-600">{product.description}</p>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-lg font-bold text-red-700">{formatCurrency(product.price)}</p>
+                        <Button onClick={() => addProduct(product)} className="bg-red-600 text-white hover:bg-red-700">
+                          Adicionar
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )
+          ) : pizzasByCategory.length === 0 ? (
             <div className="rounded-lg border border-stone-200 bg-white py-12 text-center text-stone-500">
               Nenhuma pizza encontrada.
             </div>
@@ -318,6 +373,7 @@ export default function MenuPage({ sessionId }: MenuPageProps) {
           )}
         </section>
 
+        {selectedCategory !== "bebida" && (
         <aside className="lg:sticky lg:top-20 lg:self-start">
           <Card className="border border-stone-200 bg-white p-4 shadow-sm">
             <div className="mb-4 flex items-start justify-between gap-3">
@@ -391,6 +447,7 @@ export default function MenuPage({ sessionId }: MenuPageProps) {
             </div>
           </Card>
         </aside>
+        )}
       </main>
     </div>
   );

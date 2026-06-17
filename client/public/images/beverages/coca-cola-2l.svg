@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480">
+  <rect width="640" height="480" fill="#fff7ed"/>
+  <ellipse cx="320" cy="408" rx="116" ry="24" fill="#e7e5e4"/>
+  <path d="M270 93h100l-14 58v226c0 28-23 51-51 51s-51-23-51-51V151z" fill="#7f1d1d"/>
+  <path d="M286 82h68v27h-68z" fill="#dc2626"/>
+  <rect x="262" y="198" width="116" height="98" rx="14" fill="#dc2626"/>
+  <text x="320" y="244" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#fff">Coca-Cola</text>
+  <text x="320" y="276" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#fff">2L</text>
+</svg>

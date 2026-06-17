@@ -3,6 +3,7 @@ import { boolean, integer, numeric, pgEnum, pgTable, serial, text, timestamp, va
 export const userRole = pgEnum("user_role", ["user", "admin"]);
 export const pizzaCategory = pgEnum("pizza_category", ["classica", "especial", "doce"]);
 export const pizzaSize = pgEnum("pizza_size", ["small", "large"]);
+export const cartItemType = pgEnum("cart_item_type", ["pizza", "product"]);
 export const orderStatus = pgEnum("order_status", ["pending", "sent", "completed", "cancelled"]);
 
 /**
@@ -47,6 +48,21 @@ export const pizzas = pgTable("pizzas", {
 export type Pizza = typeof pizzas.$inferSelect;
 export type InsertPizza = typeof pizzas.$inferInsert;
 
+// Menu products that are sold with a single unit price, such as drinks.
+export const products = pgTable("products", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 50 }).notNull(),
+  price: numeric("price", { precision: 10, scale: 2 }).notNull(),
+  imageUrl: varchar("imageUrl", { length: 500 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type Product = typeof products.$inferSelect;
+export type InsertProduct = typeof products.$inferInsert;
+
 // Customers with phone-based login
 export const customers = pgTable("customers", {
   id: serial("id").primaryKey(),
@@ -66,9 +82,11 @@ export type InsertCustomer = typeof customers.$inferInsert;
 export const cartItems = pgTable("cartItems", {
   id: serial("id").primaryKey(),
   sessionId: varchar("sessionId", { length: 100 }).notNull(), // Temporary session ID for anonymous users
-  pizzaId1: integer("pizzaId1").notNull(), // First pizza for half-half option
+  itemType: cartItemType("itemType").default("pizza").notNull(),
+  pizzaId1: integer("pizzaId1"), // First pizza for half-half option
   pizzaId2: integer("pizzaId2"), // Second pizza for half-half option (null if single flavor)
-  size: pizzaSize("size").notNull(), // Brotinho or Grande
+  productId: integer("productId"),
+  size: pizzaSize("size"), // Brotinho or Grande
   quantity: integer("quantity").notNull().default(1),
   price: numeric("price", { precision: 10, scale: 2 }).notNull(), // Calculated price (highest price for half-half)
   createdAt: timestamp("createdAt").defaultNow().notNull(),

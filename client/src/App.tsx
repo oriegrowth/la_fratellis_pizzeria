@@ -1,18 +1,30 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronLeft, Home, Minus, Plus, Search, ShoppingCart, Trash2, UserRound } from "lucide-react";
-import { fallbackPizzas, type MenuPizza, type PizzaCategory } from "@shared/menuData";
+import { fallbackPizzas, fallbackProducts, type MenuPizza, type MenuProduct, type PizzaCategory } from "@shared/menuData";
 
 type Size = "small" | "large";
 type Screen = "menu" | "customize" | "cart" | "checkout";
+type Category = "all" | PizzaCategory | "bebida";
 
-type CartItem = {
+type PizzaCartItem = {
   id: string;
+  itemType?: "pizza";
   size: Size;
   firstPizzaId: number;
   secondPizzaId?: number;
   quantity: number;
   unitPrice: number;
 };
+
+type ProductCartItem = {
+  id: string;
+  itemType: "product";
+  productId: number;
+  quantity: number;
+  unitPrice: number;
+};
+
+type CartItem = PizzaCartItem | ProductCartItem;
 
 type Customer = {
   name: string;
@@ -25,11 +37,12 @@ const CART_KEY = "laFratellis.whatsappCart";
 const WHATSAPP_NUMBER = "5511940720211";
 const HERO_IMAGE = "/images/pizzaria_perdizes_sp.png";
 
-const categories: Array<{ id: "all" | PizzaCategory; label: string }> = [
+const categories: Array<{ id: Category; label: string }> = [
   { id: "all", label: "Todos" },
   { id: "classica", label: "Tradicionais" },
   { id: "especial", label: "Especiais" },
   { id: "doce", label: "Doces" },
+  { id: "bebida", label: "Bebidas" },
 ];
 
 const emptyCustomer: Customer = {
@@ -53,6 +66,10 @@ function customerKey(phone: string) {
 
 function getPizza(id: number) {
   return fallbackPizzas.find((pizza) => pizza.id === id);
+}
+
+function getProduct(id: number) {
+  return fallbackProducts.find((product) => product.id === id);
 }
 
 function pizzaPrice(pizza: MenuPizza, size: Size) {
@@ -81,7 +98,7 @@ function imageCandidates(imageUrl: string) {
 
 function App() {
   const [screen, setScreen] = useState<Screen>("menu");
-  const [category, setCategory] = useState<"all" | PizzaCategory>("all");
+  const [category, setCategory] = useState<Category>("all");
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<CartItem[]>(loadCart);
   const [selectedPizza, setSelectedPizza] = useState<MenuPizza | null>(null);
@@ -103,6 +120,20 @@ function App() {
       const categoryMatches = category === "all" || pizza.category === category;
       const queryMatches =
         !term || pizza.name.toLowerCase().includes(term) || pizza.ingredients.toLowerCase().includes(term);
+
+      return categoryMatches && queryMatches;
+    });
+  }, [category, query]);
+
+  const filteredProducts = useMemo(() => {
+    const term = query.trim().toLowerCase();
+
+    return fallbackProducts.filter((product) => {
+      const categoryMatches = category === "all" || product.category === category;
+      const queryMatches =
+        !term ||
+        product.name.toLowerCase().includes(term) ||
+        (product.description || "").toLowerCase().includes(term);
 
       return categoryMatches && queryMatches;
     });
@@ -149,6 +180,22 @@ function App() {
     setScreen("cart");
   };
 
+  const addProductToCart = (product: MenuProduct) => {
+    setCart((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        itemType: "product",
+        productId: product.id,
+        quantity: 1,
+        unitPrice: Number(product.price),
+      },
+    ]);
+
+    showNotice(`${product.name} adicionado ao carrinho`);
+    setScreen("cart");
+  };
+
   const changeCartQuantity = (id: string, delta: number) => {
     setCart((current) =>
       current.map((item) => (item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item)),
@@ -180,7 +227,7 @@ function App() {
 
   const submitOrder = () => {
     if (cart.length === 0) {
-      showNotice("Adicione pelo menos uma pizza ao pedido");
+      showNotice("Adicione pelo menos um item ao pedido");
       setScreen("menu");
       return;
     }
@@ -195,6 +242,11 @@ function App() {
     }
 
     const items = cart.map((item) => {
+      if (item.itemType === "product") {
+        const product = getProduct(item.productId);
+        return `- ${item.quantity}x ${product?.name || "Bebida"}: ${money(item.unitPrice * item.quantity)}`;
+      }
+
       const firstPizza = getPizza(item.firstPizzaId);
       const second = item.secondPizzaId ? getPizza(item.secondPizzaId) : undefined;
       const sizeLabel = item.size === "small" ? "Brotinho" : "Grande";
@@ -225,11 +277,13 @@ ${items.join("\n")}
           category={category}
           query={query}
           pizzas={filteredPizzas}
+          products={filteredProducts}
           cartCount={cartCount}
           onCategoryChange={setCategory}
           onQueryChange={setQuery}
           onOpenCart={() => setScreen("cart")}
           onOpenPizza={openCustomizer}
+          onAddProduct={addProductToCart}
         />
       )}
 
@@ -285,21 +339,28 @@ function MenuScreen({
   category,
   query,
   pizzas,
+  products,
   cartCount,
   onCategoryChange,
   onQueryChange,
   onOpenCart,
   onOpenPizza,
+  onAddProduct,
 }: {
-  category: "all" | PizzaCategory;
+  category: Category;
   query: string;
   pizzas: MenuPizza[];
+  products: MenuProduct[];
   cartCount: number;
-  onCategoryChange: (category: "all" | PizzaCategory) => void;
+  onCategoryChange: (category: Category) => void;
   onQueryChange: (query: string) => void;
   onOpenCart: () => void;
   onOpenPizza: (pizza: MenuPizza) => void;
+  onAddProduct: (product: MenuProduct) => void;
 }) {
+  const itemCount = pizzas.length + products.length;
+  const itemLabel = category === "bebida" ? "bebidas" : category === "all" ? "itens" : "sabores";
+
   return (
     <main className="screen screen--menu">
       <section className="hero-card">
@@ -342,14 +403,19 @@ function MenuScreen({
       <section className="section-heading">
         <div>
           <p>Cardapio</p>
-          <h2>Populares</h2>
+          <h2>{category === "bebida" ? "Bebidas" : "Populares"}</h2>
         </div>
-        <span>{pizzas.length} sabores</span>
+        <span>
+          {itemCount} {itemLabel}
+        </span>
       </section>
 
       <section className="pizza-grid">
         {pizzas.map((pizza) => (
           <PizzaCard key={pizza.id} pizza={pizza} onAdd={() => onOpenPizza(pizza)} />
+        ))}
+        {products.map((product) => (
+          <ProductCard key={product.id} product={product} onAdd={() => onAddProduct(product)} />
         ))}
       </section>
     </main>
@@ -467,7 +533,7 @@ function CartScreen({
         <section className="empty-state">
           <ShoppingCart size={34} />
           <h1>Seu carrinho esta vazio</h1>
-          <p>Volte ao cardapio e escolha seus sabores.</p>
+          <p>Volte ao cardapio e escolha seus itens.</p>
         </section>
       ) : (
         <>
@@ -611,6 +677,27 @@ function PizzaCard({ pizza, onAdd }: { pizza: MenuPizza; onAdd: () => void }) {
   );
 }
 
+function ProductCard({ product, onAdd }: { product: MenuProduct; onAdd: () => void }) {
+  return (
+    <article className="pizza-card product-card">
+      <button className="pizza-card__visual product-card__visual" onClick={onAdd} aria-label={`Adicionar ${product.name}`}>
+        <ProductVisual product={product} />
+      </button>
+      <div className="pizza-card__body">
+        <h3>{product.name}</h3>
+        <p>{product.description}</p>
+        <div>
+          <span>Unidade</span>
+          <strong>{money(product.price)}</strong>
+        </div>
+      </div>
+      <button className="pizza-card__add" onClick={onAdd} aria-label={`Adicionar ${product.name}`}>
+        <Plus size={24} />
+      </button>
+    </article>
+  );
+}
+
 function PizzaVisual({ pizza, large = false }: { pizza: MenuPizza; large?: boolean }) {
   const candidates = imageCandidates(pizza.imageUrl);
   const [candidateIndex, setCandidateIndex] = useState(0);
@@ -634,6 +721,14 @@ function PizzaVisual({ pizza, large = false }: { pizza: MenuPizza; large?: boole
           <strong>{pizza.name.slice(0, 2)}</strong>
         </div>
       )}
+    </div>
+  );
+}
+
+function ProductVisual({ product }: { product: MenuProduct }) {
+  return (
+    <div className="product-visual">
+      <img src={product.imageUrl} alt={product.name} />
     </div>
   );
 }
@@ -663,6 +758,27 @@ function CartRow({
   onPlus: () => void;
   onRemove: () => void;
 }) {
+  if (item.itemType === "product") {
+    const product = getProduct(item.productId);
+
+    return (
+      <article className="cart-row">
+        {product ? <ProductVisual product={product} /> : <ShoppingCart size={42} />}
+        <div className="cart-row__body">
+          <h2>{product?.name || "Bebida"}</h2>
+          <p>Bebida</p>
+          <strong>{money(item.unitPrice * item.quantity)}</strong>
+        </div>
+        <div className="cart-row__side">
+          <QuantityControl value={item.quantity} onChange={(nextValue) => (nextValue > item.quantity ? onPlus() : onMinus())} />
+          <button className="remove-button" onClick={onRemove} aria-label="Remover item">
+            <Trash2 size={17} />
+          </button>
+        </div>
+      </article>
+    );
+  }
+
   const firstPizza = getPizza(item.firstPizzaId);
   const secondPizza = item.secondPizzaId ? getPizza(item.secondPizzaId) : undefined;
   const title = secondPizza ? `${firstPizza?.name} / ${secondPizza.name}` : firstPizza?.name || "Pizza";

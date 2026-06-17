@@ -266,6 +266,10 @@ button {
   padding: 16px 12px 4px;
 }
 
+.product-card__visual {
+  background: #f8fafc;
+}
+
 .pizza-card__body {
   display: grid;
   gap: 7px;
@@ -369,6 +373,23 @@ button {
   color: rgba(89, 40, 20, 0.22);
   font-size: 2rem;
   font-weight: 900;
+}
+
+.product-visual {
+  display: grid;
+  width: 112px;
+  height: 112px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 22px;
+  background: #f8fafc;
+  filter: drop-shadow(0 12px 12px rgba(53, 34, 22, 0.14));
+}
+
+.product-visual img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .app-topbar {
@@ -548,6 +569,11 @@ button {
 }
 
 .cart-row .pizza-visual {
+  width: 82px;
+  height: 82px;
+}
+
+.cart-row .product-visual {
   width: 82px;
   height: 82px;
 }

@@ -42,6 +42,7 @@ export default function CartPage({ sessionId }: CartPageProps) {
   const utils = trpc.useUtils();
   const { data: cartItems = [] } = trpc.cart.getItems.useQuery({ sessionId });
   const { data: allPizzas = [] } = trpc.pizzas.getAll.useQuery();
+  const { data: products = [] } = trpc.products.getAll.useQuery();
   const { data: savedCustomer } = trpc.customers.getByPhone.useQuery(checkoutData.phone, {
     enabled: checkoutData.phone.length >= 10,
   });
@@ -159,11 +160,25 @@ export default function CartPage({ sessionId }: CartPageProps) {
       }
 
       const orderItems = cartItems.map((item: any) => {
+        if (item.itemType === "product") {
+          const product = products.find((product: any) => product.id === item.productId);
+          const itemTotal = Number(item.price) * item.quantity;
+
+          return {
+            type: "product",
+            name: product?.name ?? "Bebida",
+            quantity: item.quantity,
+            unitPrice: Number(item.price),
+            itemTotal,
+          };
+        }
+
         const pizza1 = allPizzas.find((pizza: any) => pizza.id === item.pizzaId1);
         const pizza2 = item.pizzaId2 ? allPizzas.find((pizza: any) => pizza.id === item.pizzaId2) : null;
         const itemTotal = Number(item.price) * item.quantity;
 
         return {
+          type: "pizza",
           pizza1: pizza1?.name ?? "Pizza",
           pizza2: pizza2?.name,
           size: item.size === "small" ? "Brotinho" : "Grande",
@@ -194,7 +209,9 @@ export default function CartPage({ sessionId }: CartPageProps) {
         "━━━━━━━━━━━━━━━━━━━━━━━",
         "📦 *ITENS:*",
         ...orderItems.map((item: any) => (
-          `• ${item.quantity}x ${item.pizza1}${item.pizza2 ? ` / ${item.pizza2}` : ""} (${item.size})\n  _Subtotal: ${formatCurrency(item.itemTotal)}_`
+          item.type === "product"
+            ? `• ${item.quantity}x ${item.name}\n  _Subtotal: ${formatCurrency(item.itemTotal)}_`
+            : `• ${item.quantity}x ${item.pizza1}${item.pizza2 ? ` / ${item.pizza2}` : ""} (${item.size})\n  _Subtotal: ${formatCurrency(item.itemTotal)}_`
         )),
         "━━━━━━━━━━━━━━━━━━━━━━━",
         "🛵 *Entrega:* GRÁTIS",
@@ -255,6 +272,28 @@ export default function CartPage({ sessionId }: CartPageProps) {
         <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
           <section className="space-y-3">
             {cartItems.map((item: any) => {
+              if (item.itemType === "product") {
+                const product = products.find((product: any) => product.id === item.productId);
+                const itemTotal = Number(item.price) * item.quantity;
+
+                return (
+                  <Card key={item.id} className="flex items-start justify-between gap-4 border border-stone-200 bg-white p-4 shadow-sm">
+                    <div className="min-w-0 flex-1">
+                      <h2 className="font-bold">{product?.name ?? "Bebida"}</h2>
+                      <p className="mt-1 text-sm text-stone-600">Quantidade: {item.quantity}</p>
+                      <p className="mt-2 font-bold text-red-700">{formatCurrency(itemTotal)}</p>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveItem(item.id)}
+                      className="rounded-full p-2 text-red-600 hover:bg-red-50"
+                      aria-label="Remover item"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  </Card>
+                );
+              }
+
               const pizza1 = allPizzas.find((pizza: any) => pizza.id === item.pizzaId1);
               const pizza2 = item.pizzaId2 ? allPizzas.find((pizza: any) => pizza.id === item.pizzaId2) : null;
               const itemTotal = Number(item.price) * item.quantity;

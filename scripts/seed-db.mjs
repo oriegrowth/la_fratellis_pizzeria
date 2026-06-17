@@ -19,6 +19,8 @@ const now = new Date();
 
 const pizzaPattern =
   /\{\s*id:\s*(\d+),\s*name:\s*"([^"]+)",\s*description:\s*(null|"[^"]*"),\s*ingredients:\s*"([^"]+)",\s*category:\s*"([^"]+)",\s*priceSmall:\s*([\d.]+),\s*priceLarge:\s*([\d.]+),\s*imageUrl:\s*image\("([^"]+)"\)/g;
+const productPattern =
+  /\{\s*id:\s*(\d+),\s*name:\s*"([^"]+)",\s*description:\s*(null|"[^"]*"),\s*category:\s*"([^"]+)",\s*price:\s*([\d.]+),\s*imageUrl:\s*beverageImage\("([^"]+)"\)/g;
 
 const pizzas = [...menuData.matchAll(pizzaPattern)].map((match) => ({
   id: Number(match[1]),
@@ -29,6 +31,15 @@ const pizzas = [...menuData.matchAll(pizzaPattern)].map((match) => ({
   priceSmall: match[6],
   priceLarge: match[7],
   imageUrl: `/images/pizzas/${match[8]}.webp`,
+}));
+
+const products = [...menuData.matchAll(productPattern)].map((match) => ({
+  id: Number(match[1]),
+  name: match[2],
+  description: match[3] === "null" ? null : match[3].slice(1, -1),
+  category: match[4],
+  price: match[5],
+  imageUrl: `/images/beverages/${match[6]}.svg`,
 }));
 
 const promotions = [
@@ -100,7 +111,32 @@ try {
     `;
   }
 
-  console.log(`Database seeded: ${pizzas.length} pizzas, ${promotions.length} promotions`);
+  for (const product of products) {
+    await sql`
+      INSERT INTO products (
+        id, name, description, category, price, "imageUrl", "createdAt", "updatedAt"
+      )
+      VALUES (
+        ${product.id},
+        ${product.name},
+        ${product.description},
+        ${product.category},
+        ${product.price},
+        ${product.imageUrl},
+        ${now},
+        ${now}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        name = excluded.name,
+        description = excluded.description,
+        category = excluded.category,
+        price = excluded.price,
+        "imageUrl" = excluded."imageUrl",
+        "updatedAt" = now()
+    `;
+  }
+
+  console.log(`Database seeded: ${pizzas.length} pizzas, ${products.length} products, ${promotions.length} promotions`);
 } finally {
   await sql.end();
 }
