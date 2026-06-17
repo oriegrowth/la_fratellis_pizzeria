@@ -73,7 +73,7 @@ export default function Home({ sessionId }: HomeProps) {
           <div className="mb-3 flex items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-bold uppercase tracking-wider text-red-600">Entrega em Perdizes</p>
-              <h1 className="truncate text-lg font-extrabold text-stone-900">La Fratellis Pizzeria</h1>
+              <h1 className="truncate text-lg font-extrabold text-stone-900">La Fratellis Pizzaria</h1>
             </div>
             <button
               onClick={() => navigate("/cart")}
@@ -125,7 +125,7 @@ export default function Home({ sessionId }: HomeProps) {
               <p className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold">
                 <Star size={14} /> Aberto para pedidos
               </p>
-              <h2 className="text-3xl font-bold leading-tight">Escolha sua pizza favorita</h2>
+              <h2 className="text-3xl font-bold leading-tight">Feita a quatro mãos, para você</h2>
               <p className="mt-2 max-w-xl text-sm text-stone-200">
                 Peca sabores inteiros ou monte meio a meio. Na pizza meio a meio, o preco cobrado e sempre o do sabor mais caro.
               </p>

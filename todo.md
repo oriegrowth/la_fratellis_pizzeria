@@ -1,4 +1,5 @@
-# La Fratellis Pizzaria - Web App TODO
+# La Fratellis Pizzaria - Delivery App
+*Feita a quatro mãos, para você*
 
 ## Funcionalidades Principais
 
