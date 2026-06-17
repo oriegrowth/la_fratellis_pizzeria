@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect } from 'react';
-import { ShoppingCart, Heart, Share2, Search, Menu } from 'lucide-react';
+import { ShoppingCart, Menu } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { useLocation } from 'wouter';
 import { getImageUrl } from '@/lib/imageMap';
+import { useState, useEffect, useMemo } from 'react';
 
 export default function Home() {
   const [, navigate] = useLocation();
@@ -32,9 +32,9 @@ export default function Home() {
 
   const categories = [
     { id: 'all', label: 'Todos' },
-    { id: 'classicas', label: 'Clássicas' },
-    { id: 'especiais', label: 'Especiais' },
-    { id: 'doces', label: 'Doces' },
+    { id: 'classica', label: 'Clássicas' },
+    { id: 'especial', label: 'Especiais' },
+    { id: 'doce', label: 'Doces' },
   ];
 
   const handleAddToCart = (pizzaId: number) => {
@@ -44,7 +44,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
+      <header className="sticky top-0 z-50 bg-white">
         {/* Top bar with time and status icons */}
         <div className="flex items-center justify-between px-4 py-2 text-xs text-gray-600">
           <span>17:23</span>
@@ -63,39 +63,27 @@ export default function Home() {
             <Menu size={24} />
           </button>
           
-          <div className="flex-1 relative">
-            <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Pesquisar itens na loja"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-full text-sm focus:outline-none"
-            />
-          </div>
+          <h1 className="flex-1 text-center font-bold text-lg">La Fratellis</h1>
 
-          <button className="text-gray-600">
-            <Heart size={24} />
-          </button>
-          
-          <button className="text-gray-600">
-            <Share2 size={24} />
+          <button className="text-gray-600" onClick={() => navigate('/cart')}>
+            <ShoppingCart size={24} />
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                {cartCount}
+              </span>
+            )}
           </button>
         </div>
 
         {/* Category tabs */}
-        <div className="px-4 py-3 flex gap-2 overflow-x-auto">
-          <button className="text-gray-600 hover:text-gray-900">
-            <Menu size={20} />
-          </button>
-          
+        <div className="px-4 py-3 flex gap-2 overflow-x-auto border-b border-gray-100">
           {categories.map(cat => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`px-4 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+              className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-colors ${
                 selectedCategory === cat.id
-                  ? 'bg-yellow-300 text-black'
+                  ? 'bg-yellow-400 text-black'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -105,22 +93,29 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main content */}
       <main className="pb-24">
-        {/* Promotions section */}
+        {/* Promotions Hero */}
         {promotions.length > 0 && (
           <div className="px-4 py-4">
-            <h2 className="text-lg font-bold mb-3">Buscas recentes</h2>
             {promotions.map((promo: any) => (
               <div
                 key={promo.id}
-                className="mb-4 p-4 rounded-lg"
-                style={{ backgroundColor: '#fff9e6' }}
+                className="mb-4 rounded-2xl overflow-hidden relative h-48 flex items-end justify-start"
+                style={{
+                  backgroundImage: 'linear-gradient(135deg, #DC2626 0%, #991B1B 100%)',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }}
               >
-                <h3 className="font-bold text-lg mb-2">{promo.title}</h3>
-                <p className="text-sm text-gray-600 mb-3">{promo.description}</p>
-                <p className="font-bold text-lg">a partir de</p>
-                <p className="font-bold text-2xl text-red-600">R${(promo.price || 0).toFixed(2)}</p>
+                {/* Dark overlay */}
+                <div className="absolute inset-0 bg-black/20"></div>
+                
+                {/* Content */}
+                <div className="relative z-10 p-6 w-full">
+                  <h3 className="font-bold text-2xl text-white mb-2">{promo.title}</h3>
+                  <p className="text-sm text-white/90 mb-3">{promo.description}</p>
+                  <p className="font-bold text-3xl text-yellow-300">R${(parseFloat(promo.price) || 0).toFixed(2)}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -137,7 +132,7 @@ export default function Home() {
               {filteredPizzas.map((pizza: any) => (
                 <div
                   key={pizza.id}
-                  className="flex gap-4 p-4 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
+                  className="flex gap-4 p-4 bg-white rounded-lg hover:shadow-md transition-shadow"
                 >
                   {/* Left side - Info */}
                   <div className="flex-1">
@@ -145,7 +140,7 @@ export default function Home() {
                     <p className="text-sm text-gray-600 mb-3 line-clamp-2">{pizza.ingredients}</p>
                     
                     <div className="flex items-baseline gap-2">
-                      <p className="font-bold text-lg">R${(pizza.smallPrice || 0).toFixed(2)}</p>
+                      <p className="font-bold text-lg">R${(parseFloat(pizza.priceSmall) || 0).toFixed(2)}</p>
                       {pizza.discount && pizza.originalPrice && (
                         <>
                           <p className="text-sm text-gray-500 line-through">R${(pizza.originalPrice || 0).toFixed(2)}</p>
@@ -162,7 +157,7 @@ export default function Home() {
                         src={getImageUrl(pizza.name)}
                         alt={pizza.name}
                         loading="lazy"
-                        className="w-24 h-24 rounded-lg object-cover"
+                        className="w-24 h-24 rounded-2xl object-cover"
                       />
                     </div>
                     <button
@@ -178,22 +173,6 @@ export default function Home() {
           )}
         </div>
       </main>
-
-      {/* Floating cart button */}
-      {cartCount > 0 && (
-        <button
-          onClick={() => navigate('/cart')}
-          className="fixed bottom-6 right-6 bg-red-600 text-white rounded-full p-4 shadow-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-        >
-          <ShoppingCart size={24} />
-          <span className="font-bold">{cartCount}</span>
-        </button>
-      )}
-
-      {/* Minimum order info */}
-      <div className="fixed bottom-0 left-0 right-0 bg-green-50 border-t border-green-200 px-4 py-3 text-center text-sm text-green-700">
-        Compre R$29,00 ou mais para ter <span className="font-semibold">entrega grátis</span>
-      </div>
     </div>
   );
 }
