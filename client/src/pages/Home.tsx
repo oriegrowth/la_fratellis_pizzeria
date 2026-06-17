@@ -63,7 +63,11 @@ export default function Home({ sessionId }: HomeProps) {
               aria-label="Abrir carrinho"
             >
               <ShoppingCart size={20} />
-              {cartCount > 0 && <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white">{cartCount}</span>}
+              {cartCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white">
+                  {cartCount}
+                </span>
+              )}
             </button>
           </div>
 
@@ -84,7 +88,7 @@ export default function Home({ sessionId }: HomeProps) {
             <button
               key={category.id}
               onClick={() => setSelectedCategory(category.id)}
-              className={`rounded-full px-5 py-2 text-sm font-bold whitespace-nowrap transition-all ${
+              className={`whitespace-nowrap rounded-full px-5 py-2 text-sm font-bold transition-all ${
                 selectedCategory === category.id
                   ? "bg-red-600 text-white shadow-md shadow-red-100"
                   : "bg-stone-50 text-stone-500 hover:bg-stone-100"
@@ -105,7 +109,7 @@ export default function Home({ sessionId }: HomeProps) {
               </p>
               <h2 className="text-3xl font-bold leading-tight">Escolha sua pizza favorita</h2>
               <p className="mt-2 max-w-xl text-sm text-stone-200">
-                Peça sabores inteiros ou monte meio a meio. Na pizza meio a meio, o preço cobrado e sempre o do sabor mais caro.
+                Peca sabores inteiros ou monte meio a meio. Na pizza meio a meio, o preco cobrado e sempre o do sabor mais caro.
               </p>
             </div>
             <div className="grid gap-2 text-sm text-stone-100">
