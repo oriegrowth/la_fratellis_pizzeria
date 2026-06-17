@@ -1,9 +1,49 @@
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, pizzas, customers, cartItems, orders, promotions } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { fallbackPizzas, fallbackPromotions } from "@shared/menuData";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let memoryCartId = 1;
+let memoryCustomerId = 1;
+let memoryOrderId = 1;
+const memoryCartItems: Array<{
+  id: number;
+  sessionId: string;
+  pizzaId1: number;
+  pizzaId2: number | null;
+  size: "small" | "large";
+  quantity: number;
+  price: string;
+  createdAt: Date;
+  updatedAt: Date;
+}> = [];
+const memoryCustomers: Array<{
+  id: number;
+  phone: string;
+  name: string;
+  address: string;
+  addressNumber: string;
+  addressReference: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}> = [];
+const memoryOrders: Array<{
+  id: number;
+  customerId: number | null;
+  phone: string;
+  name: string;
+  address: string;
+  addressNumber: string;
+  addressReference: string | null;
+  items: string;
+  totalPrice: string;
+  status: "pending" | "sent" | "completed" | "cancelled";
+  whatsappMessageId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}> = [];
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
@@ -92,27 +132,29 @@ export async function getUserByOpenId(openId: string) {
 // Pizza queries
 export async function getAllPizzas() {
   const db = await getDb();
-  if (!db) return [];
-  return db.select().from(pizzas);
+  if (!db) return fallbackPizzas;
+  const result = await db.select().from(pizzas);
+  return result.length > 0 ? result : fallbackPizzas;
 }
 
 export async function getPizzasByCategory(category: 'classica' | 'especial' | 'doce') {
   const db = await getDb();
-  if (!db) return [];
-  return db.select().from(pizzas).where(eq(pizzas.category, category));
+  if (!db) return fallbackPizzas.filter(pizza => pizza.category === category);
+  const result = await db.select().from(pizzas).where(eq(pizzas.category, category));
+  return result.length > 0 ? result : fallbackPizzas.filter(pizza => pizza.category === category);
 }
 
 export async function getPizzaById(id: number) {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) return fallbackPizzas.find(pizza => pizza.id === id) ?? null;
   const result = await db.select().from(pizzas).where(eq(pizzas.id, id)).limit(1);
-  return result.length > 0 ? result[0] : null;
+  return result.length > 0 ? result[0] : fallbackPizzas.find(pizza => pizza.id === id) ?? null;
 }
 
 // Customer queries
 export async function getCustomerByPhone(phone: string) {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) return memoryCustomers.find(customer => customer.phone === phone) ?? null;
   const result = await db.select().from(customers).where(eq(customers.phone, phone)).limit(1);
   return result.length > 0 ? result[0] : null;
 }
@@ -125,7 +167,32 @@ export async function createOrUpdateCustomer(data: {
   addressReference?: string;
 }) {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) {
+    const existing = memoryCustomers.find(customer => customer.phone === data.phone);
+    const now = new Date();
+
+    if (existing) {
+      existing.name = data.name;
+      existing.address = data.address;
+      existing.addressNumber = data.addressNumber;
+      existing.addressReference = data.addressReference || null;
+      existing.updatedAt = now;
+      return existing;
+    }
+
+    const customer = {
+      id: memoryCustomerId++,
+      phone: data.phone,
+      name: data.name,
+      address: data.address,
+      addressNumber: data.addressNumber,
+      addressReference: data.addressReference || null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    memoryCustomers.push(customer);
+    return customer;
+  }
 
   const existing = await getCustomerByPhone(data.phone);
   if (existing) {
@@ -135,7 +202,11 @@ export async function createOrUpdateCustomer(data: {
       addressNumber: data.addressNumber,
       addressReference: data.addressReference || null,
     }).where(eq(customers.phone, data.phone));
-    return existing;
+    return {
+      ...existing,
+      ...data,
+      addressReference: data.addressReference || null,
+    };
   }
 
   const result = await db.insert(customers).values(data);
@@ -145,7 +216,7 @@ export async function createOrUpdateCustomer(data: {
 // Cart queries
 export async function getCartItems(sessionId: string) {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) return memoryCartItems.filter(item => item.sessionId === sessionId);
   return db.select().from(cartItems).where(eq(cartItems.sessionId, sessionId));
 }
 
@@ -158,7 +229,22 @@ export async function addToCart(data: {
   price: number;
 }) {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) {
+    const now = new Date();
+    const item = {
+      id: memoryCartId++,
+      sessionId: data.sessionId,
+      pizzaId1: data.pizzaId1,
+      pizzaId2: data.pizzaId2 || null,
+      size: data.size,
+      quantity: data.quantity,
+      price: data.price.toString(),
+      createdAt: now,
+      updatedAt: now,
+    };
+    memoryCartItems.push(item);
+    return item;
+  }
   const result = await db.insert(cartItems).values([{
     sessionId: data.sessionId,
     pizzaId1: data.pizzaId1,
@@ -172,14 +258,26 @@ export async function addToCart(data: {
 
 export async function removeFromCart(id: number) {
   const db = await getDb();
-  if (!db) return false;
+  if (!db) {
+    const index = memoryCartItems.findIndex(item => item.id === id);
+    if (index === -1) return false;
+    memoryCartItems.splice(index, 1);
+    return true;
+  }
   await db.delete(cartItems).where(eq(cartItems.id, id));
   return true;
 }
 
 export async function clearCart(sessionId: string) {
   const db = await getDb();
-  if (!db) return false;
+  if (!db) {
+    for (let index = memoryCartItems.length - 1; index >= 0; index--) {
+      if (memoryCartItems[index].sessionId === sessionId) {
+        memoryCartItems.splice(index, 1);
+      }
+    }
+    return true;
+  }
   await db.delete(cartItems).where(eq(cartItems.sessionId, sessionId));
   return true;
 }
@@ -196,7 +294,26 @@ export async function createOrder(data: {
   totalPrice: number;
 }) {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) {
+    const now = new Date();
+    const order = {
+      id: memoryOrderId++,
+      customerId: data.customerId || null,
+      phone: data.phone,
+      name: data.name,
+      address: data.address,
+      addressNumber: data.addressNumber,
+      addressReference: data.addressReference || null,
+      items: data.items,
+      totalPrice: data.totalPrice.toString(),
+      status: "pending" as const,
+      whatsappMessageId: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    memoryOrders.push(order);
+    return order;
+  }
   const result = await db.insert(orders).values([{
     customerId: data.customerId || null,
     phone: data.phone,
@@ -214,6 +331,7 @@ export async function createOrder(data: {
 // Promotions queries
 export async function getActivePromotions() {
   const db = await getDb();
-  if (!db) return [];
-  return db.select().from(promotions).where(eq(promotions.isActive, true));
+  if (!db) return fallbackPromotions;
+  const result = await db.select().from(promotions).where(eq(promotions.isActive, true));
+  return result.length > 0 ? result : fallbackPromotions;
 }

@@ -1,199 +1,196 @@
-import { useState, useMemo, useEffect } from 'react';
-import { ShoppingCart, Heart, Share2, Search, Menu } from 'lucide-react';
-import { trpc } from '@/lib/trpc';
-import { useLocation } from 'wouter';
-import { getImageUrl } from '@/lib/imageMap';
+import { useEffect, useMemo, useState } from "react";
+import { Clock, MapPin, Search, ShoppingCart, Star, Plus, Pizza } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { getImageUrl, placeholderDataUrl } from "@/lib/imageMap";
+import { useLocation } from "wouter";
 
-export default function Home() {
+interface HomeProps {
+  sessionId: string;
+}
+
+const categories = [
+  { id: "all", label: "Todos" },
+  { id: "classica", label: "Classicas" },
+  { id: "especial", label: "Especiais" },
+  { id: "doce", label: "Doces" },
+];
+
+function formatCurrency(value: unknown) {
+  const number = typeof value === "number" ? value : Number(value ?? 0);
+  return number.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+export default function Home({ sessionId }: HomeProps) {
   const [, navigate] = useLocation();
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
   const [cartCount, setCartCount] = useState(0);
 
-  // Fetch pizzas and promotions
   const { data: pizzas = [] } = trpc.pizzas.getAll.useQuery();
   const { data: promotions = [] } = trpc.promotions.getActive.useQuery();
-  const { data: cartItems = [] } = trpc.cart.getItems.useQuery({ sessionId: 'default' });
+  const { data: cartItems = [] } = trpc.cart.getItems.useQuery({ sessionId });
 
-  // Update cart count
   useEffect(() => {
-    setCartCount(cartItems.length);
+    setCartCount(cartItems.reduce((sum: number, item: any) => sum + item.quantity, 0));
   }, [cartItems]);
 
-  // Filter pizzas by category and search
   const filteredPizzas = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
     return pizzas.filter((pizza: any) => {
-      const matchesCategory = selectedCategory === 'all' || pizza.category === selectedCategory;
-      const matchesSearch = pizza.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           pizza.ingredients.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = selectedCategory === "all" || pizza.category === selectedCategory;
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        pizza.name.toLowerCase().includes(normalizedSearch) ||
+        pizza.ingredients.toLowerCase().includes(normalizedSearch);
+
       return matchesCategory && matchesSearch;
     });
   }, [pizzas, selectedCategory, searchTerm]);
 
-  const categories = [
-    { id: 'all', label: 'Todos' },
-    { id: 'classicas', label: 'Clássicas' },
-    { id: 'especiais', label: 'Especiais' },
-    { id: 'doces', label: 'Doces' },
-  ];
-
-  const handleAddToCart = (pizzaId: number) => {
-    navigate(`/menu?pizza=${pizzaId}`);
-  };
-
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
-        {/* Top bar with time and status icons */}
-        <div className="flex items-center justify-between px-4 py-2 text-xs text-gray-600">
-          <span>17:23</span>
-          <div className="flex gap-1">
-            <span>📍</span>
-            <span>📳</span>
-            <span>📶</span>
-            <span>📡</span>
-            <span>🔋</span>
+    <div className="min-h-screen bg-white text-stone-950">
+      <header className="sticky top-0 z-50 border-b border-stone-100 bg-white/80 backdrop-blur-md">
+        <div className="mx-auto max-w-5xl px-4 py-3">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-red-600">Entrega em Perdizes</p>
+              <h1 className="truncate text-lg font-extrabold text-stone-900">La Fratellis Pizzeria</h1>
+            </div>
+            <button
+              onClick={() => navigate("/cart")}
+              className="relative rounded-full bg-stone-50 p-2.5 text-stone-900 transition-colors hover:bg-stone-100"
+              aria-label="Abrir carrinho"
+            >
+              <ShoppingCart size={20} />
+              {cartCount > 0 && <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white">{cartCount}</span>}
+            </button>
           </div>
-        </div>
 
-        {/* Search bar and icons */}
-        <div className="px-4 py-3 flex items-center gap-3">
-          <button className="text-gray-600">
-            <Menu size={24} />
-          </button>
-          
-          <div className="flex-1 relative">
-            <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+          <div className="relative">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
             <input
               type="text"
-              placeholder="Pesquisar itens na loja"
+              placeholder="Buscar sabor ou ingrediente"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-full text-sm focus:outline-none"
+              onChange={(event) => setSearchTerm(event.target.value)}
+              className="h-11 w-full rounded-md border border-stone-200 bg-stone-50 pl-10 pr-4 text-sm outline-none transition focus:border-red-300 focus:bg-white focus:ring-2 focus:ring-red-100"
             />
           </div>
-
-          <button className="text-gray-600">
-            <Heart size={24} />
-          </button>
-          
-          <button className="text-gray-600">
-            <Share2 size={24} />
-          </button>
         </div>
 
-        {/* Category tabs */}
-        <div className="px-4 py-3 flex gap-2 overflow-x-auto">
-          <button className="text-gray-600 hover:text-gray-900">
-            <Menu size={20} />
-          </button>
-          
-          {categories.map(cat => (
+        <div className="mx-auto flex max-w-5xl gap-2 overflow-x-auto px-4 pb-3">
+          {categories.map((category) => (
             <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`px-4 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                selectedCategory === cat.id
-                  ? 'bg-yellow-300 text-black'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              key={category.id}
+              onClick={() => setSelectedCategory(category.id)}
+              className={`rounded-full px-5 py-2 text-sm font-bold whitespace-nowrap transition-all ${
+                selectedCategory === category.id
+                  ? "bg-red-600 text-white shadow-md shadow-red-100"
+                  : "bg-stone-50 text-stone-500 hover:bg-stone-100"
               }`}
             >
-              {cat.label}
+              {category.label}
             </button>
           ))}
         </div>
       </header>
 
-      {/* Main content */}
-      <main className="pb-24">
-        {/* Promotions section */}
-        {promotions.length > 0 && (
-          <div className="px-4 py-4">
-            <h2 className="text-lg font-bold mb-3">Buscas recentes</h2>
-            {promotions.map((promo: any) => (
-              <div
-                key={promo.id}
-                className="mb-4 p-4 rounded-lg"
-                style={{ backgroundColor: '#fff9e6' }}
+      <main className="mx-auto max-w-5xl px-4 pb-28 pt-5">
+        <section className="mb-5 overflow-hidden rounded-lg bg-stone-950 text-white shadow-sm">
+          <div className="grid gap-4 p-5 sm:grid-cols-[1.6fr_1fr] sm:items-center">
+            <div>
+              <p className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold">
+                <Star size={14} /> Aberto para pedidos
+              </p>
+              <h2 className="text-3xl font-bold leading-tight">Escolha sua pizza favorita</h2>
+              <p className="mt-2 max-w-xl text-sm text-stone-200">
+                Peça sabores inteiros ou monte meio a meio. Na pizza meio a meio, o preço cobrado e sempre o do sabor mais caro.
+              </p>
+            </div>
+            <div className="grid gap-2 text-sm text-stone-100">
+              <span className="inline-flex items-center gap-2">
+                <Clock size={16} /> Entrega rapida na regiao
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <MapPin size={16} /> Perdizes e arredores
+              </span>
+              <button
+                onClick={() => navigate("/menu")}
+                className="mt-2 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-green-600 px-4 font-semibold text-white hover:bg-green-700"
               >
-                <h3 className="font-bold text-lg mb-2">{promo.title}</h3>
-                <p className="text-sm text-gray-600 mb-3">{promo.description}</p>
-                <p className="font-bold text-lg">a partir de</p>
-                <p className="font-bold text-2xl text-red-600">R${(promo.price || 0).toFixed(2)}</p>
+                <Pizza size={18} /> Montar pedido
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {promotions.length > 0 && (
+          <section className="mb-5">
+            <h2 className="mb-3 text-lg font-bold">Promocoes</h2>
+            {promotions.map((promo: any) => (
+              <div key={promo.id} className="mb-3 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+                <h3 className="mb-1 text-lg font-bold text-stone-950">{promo.title}</h3>
+                <p className="text-sm text-stone-700">{promo.description}</p>
+                {promo.details && <p className="mt-2 text-xs font-medium text-red-700">{promo.details}</p>}
               </div>
             ))}
-          </div>
+          </section>
         )}
 
-        {/* Products list */}
-        <div className="px-4 py-4">
+        <section>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-bold">Cardapio</h2>
+            <button onClick={() => navigate("/menu")} className="text-sm font-semibold text-red-700 hover:text-red-800">
+              Ver montagem
+            </button>
+          </div>
+
           {filteredPizzas.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500">Nenhuma pizza encontrada</p>
+            <div className="rounded-lg border border-stone-200 bg-white py-10 text-center">
+              <p className="text-stone-500">Nenhuma pizza encontrada</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
               {filteredPizzas.map((pizza: any) => (
                 <div
                   key={pizza.id}
-                  className="flex gap-4 p-4 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
+                  className="flex gap-4 rounded-lg border border-stone-200 bg-white p-3 shadow-sm transition hover:border-red-200 hover:shadow-md"
                 >
-                  {/* Left side - Info */}
-                  <div className="flex-1">
-                    <h3 className="font-bold text-base mb-1">{pizza.name}</h3>
-                    <p className="text-sm text-gray-600 mb-3 line-clamp-2">{pizza.ingredients}</p>
-                    
-                    <div className="flex items-baseline gap-2">
-                      <p className="font-bold text-lg">R${(pizza.smallPrice || 0).toFixed(2)}</p>
-                      {pizza.discount && pizza.originalPrice && (
-                        <>
-                          <p className="text-sm text-gray-500 line-through">R${(pizza.originalPrice || 0).toFixed(2)}</p>
-                          <span className="text-green-600 text-sm font-semibold">{pizza.discount}%</span>
-                        </>
-                      )}
-                    </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="mb-1 text-base font-bold">{pizza.name}</h3>
+                    <p className="mb-3 line-clamp-2 text-sm text-stone-600">{pizza.ingredients}</p>
+                    <p className="text-xs font-medium uppercase text-stone-500">A partir de</p>
+                    <p className="text-lg font-bold text-red-700">{formatCurrency(pizza.priceSmall)}</p>
                   </div>
 
-                  {/* Right side - Image and button */}
-                  <div className="relative">
-                    <div className="w-24 h-24 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden">
+                  <div className="relative h-24 w-24 shrink-0">
+                    <div className="h-24 w-24 overflow-hidden rounded-lg bg-stone-100">
                       <img
-                        src={getImageUrl(pizza.name)}
+                        src={pizza.imageUrl || getImageUrl(pizza.name)}
                         alt={pizza.name}
                         loading="lazy"
-                        className="w-24 h-24 rounded-lg object-cover"
+                        decoding="async"
+                        className="h-full w-full object-cover"
+                        onError={(event) => {
+                          event.currentTarget.src = placeholderDataUrl();
+                        }}
                       />
                     </div>
                     <button
-                      onClick={() => handleAddToCart(pizza.id)}
-                      className="absolute bottom-0 right-0 w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center text-black font-bold hover:bg-yellow-500 transition-colors shadow-lg"
+                      onClick={() => navigate("/menu")}
+                      className="absolute -bottom-2 -right-2 grid h-8 w-8 place-items-center rounded-full bg-red-600 text-white shadow-md hover:bg-red-700"
+                      aria-label={`Adicionar ${pizza.name}`}
                     >
-                      +
+                      <Plus size={16} />
                     </button>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </section>
       </main>
-
-      {/* Floating cart button */}
-      {cartCount > 0 && (
-        <button
-          onClick={() => navigate('/cart')}
-          className="fixed bottom-6 right-6 bg-red-600 text-white rounded-full p-4 shadow-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-        >
-          <ShoppingCart size={24} />
-          <span className="font-bold">{cartCount}</span>
-        </button>
-      )}
-
-      {/* Minimum order info */}
-      <div className="fixed bottom-0 left-0 right-0 bg-green-50 border-t border-green-200 px-4 py-3 text-center text-sm text-green-700">
-        Compre R$29,00 ou mais para ter <span className="font-semibold">entrega grátis</span>
-      </div>
     </div>
   );
 }

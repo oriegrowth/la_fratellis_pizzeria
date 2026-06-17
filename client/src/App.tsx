@@ -1,41 +1,700 @@
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
+import { useEffect, useMemo, useState } from "react";
+import { Check, ChevronLeft, Home, Minus, Plus, Search, ShoppingCart, Trash2, UserRound } from "lucide-react";
+import { fallbackPizzas, type MenuPizza, type PizzaCategory } from "@shared/menuData";
 
-function Router() {
-  // make sure to consider if you need authentication for certain routes
+type Size = "small" | "large";
+type Screen = "menu" | "customize" | "cart" | "checkout";
+
+type CartItem = {
+  id: string;
+  size: Size;
+  firstPizzaId: number;
+  secondPizzaId?: number;
+  quantity: number;
+  unitPrice: number;
+};
+
+type Customer = {
+  name: string;
+  phone: string;
+  address: string;
+  reference: string;
+};
+
+const CART_KEY = "laFratellis.whatsappCart";
+const WHATSAPP_NUMBER = "5511940720211";
+const HERO_IMAGE = "/images/pizzaria_perdizes_sp.png";
+
+const categories: Array<{ id: "all" | PizzaCategory; label: string }> = [
+  { id: "all", label: "Todos" },
+  { id: "classica", label: "Tradicionais" },
+  { id: "especial", label: "Especiais" },
+  { id: "doce", label: "Doces" },
+];
+
+const emptyCustomer: Customer = {
+  name: "",
+  phone: "",
+  address: "",
+  reference: "",
+};
+
+function money(value: number) {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function customerKey(phone: string) {
+  return `laFratellis.customer.${onlyDigits(phone)}`;
+}
+
+function getPizza(id: number) {
+  return fallbackPizzas.find((pizza) => pizza.id === id);
+}
+
+function pizzaPrice(pizza: MenuPizza, size: Size) {
+  return size === "small" ? Number(pizza.priceSmall) : Number(pizza.priceLarge);
+}
+
+function loadCart() {
+  try {
+    return JSON.parse(localStorage.getItem(CART_KEY) || "[]") as CartItem[];
+  } catch {
+    return [];
+  }
+}
+
+function imageCandidates(imageUrl: string) {
+  const candidates = [imageUrl];
+
+  if (imageUrl.endsWith(".webp")) {
+    candidates.push(imageUrl.replace(/\.webp$/i, ".png"));
+    candidates.push(imageUrl.replace(/\.webp$/i, ".jpg"));
+    candidates.push(imageUrl.replace(/\.webp$/i, ".jpeg"));
+  }
+
+  return candidates;
+}
+
+function App() {
+  const [screen, setScreen] = useState<Screen>("menu");
+  const [category, setCategory] = useState<"all" | PizzaCategory>("all");
+  const [query, setQuery] = useState("");
+  const [cart, setCart] = useState<CartItem[]>(loadCart);
+  const [selectedPizza, setSelectedPizza] = useState<MenuPizza | null>(null);
+  const [selectedSize, setSelectedSize] = useState<Size>("small");
+  const [secondPizzaId, setSecondPizzaId] = useState<number | undefined>();
+  const [quantity, setQuantity] = useState(1);
+  const [saveCustomer, setSaveCustomer] = useState(true);
+  const [customer, setCustomer] = useState<Customer>(emptyCustomer);
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    localStorage.setItem(CART_KEY, JSON.stringify(cart));
+  }, [cart]);
+
+  const filteredPizzas = useMemo(() => {
+    const term = query.trim().toLowerCase();
+
+    return fallbackPizzas.filter((pizza) => {
+      const categoryMatches = category === "all" || pizza.category === category;
+      const queryMatches =
+        !term || pizza.name.toLowerCase().includes(term) || pizza.ingredients.toLowerCase().includes(term);
+
+      return categoryMatches && queryMatches;
+    });
+  }, [category, query]);
+
+  const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
+  const cartTotal = cart.reduce((total, item) => total + item.unitPrice * item.quantity, 0);
+  const secondPizza = secondPizzaId ? getPizza(secondPizzaId) : undefined;
+  const customizerPrice = selectedPizza
+    ? selectedSize === "small"
+      ? pizzaPrice(selectedPizza, "small")
+      : Math.max(pizzaPrice(selectedPizza, "large"), secondPizza ? pizzaPrice(secondPizza, "large") : 0)
+    : 0;
+
+  const showNotice = (message: string) => {
+    setNotice(message);
+    window.setTimeout(() => setNotice(""), 2400);
+  };
+
+  const openCustomizer = (pizza: MenuPizza) => {
+    setSelectedPizza(pizza);
+    setSelectedSize("small");
+    setSecondPizzaId(undefined);
+    setQuantity(1);
+    setScreen("customize");
+  };
+
+  const addToCart = () => {
+    if (!selectedPizza) return;
+
+    setCart((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        size: selectedSize,
+        firstPizzaId: selectedPizza.id,
+        secondPizzaId: selectedSize === "large" ? secondPizzaId : undefined,
+        quantity,
+        unitPrice: customizerPrice,
+      },
+    ]);
+
+    showNotice(`${selectedPizza.name} adicionada ao carrinho`);
+    setScreen("cart");
+  };
+
+  const changeCartQuantity = (id: string, delta: number) => {
+    setCart((current) =>
+      current.map((item) => (item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item)),
+    );
+  };
+
+  const removeCartItem = (id: string) => {
+    setCart((current) => current.filter((item) => item.id !== id));
+  };
+
+  const updateCustomer = (field: keyof Customer, value: string) => {
+    const nextCustomer = { ...customer, [field]: value };
+    setCustomer(nextCustomer);
+
+    if (field === "phone") {
+      const digits = onlyDigits(value);
+      if (digits.length >= 10) {
+        try {
+          const saved = localStorage.getItem(customerKey(value));
+          if (saved) {
+            setCustomer({ ...JSON.parse(saved), phone: value });
+          }
+        } catch {
+          return;
+        }
+      }
+    }
+  };
+
+  const submitOrder = () => {
+    if (cart.length === 0) {
+      showNotice("Adicione pelo menos uma pizza ao pedido");
+      setScreen("menu");
+      return;
+    }
+
+    if (!customer.name.trim() || !customer.phone.trim() || !customer.address.trim()) {
+      showNotice("Preencha nome, WhatsApp e endereco");
+      return;
+    }
+
+    if (saveCustomer) {
+      localStorage.setItem(customerKey(customer.phone), JSON.stringify(customer));
+    }
+
+    const items = cart.map((item) => {
+      const firstPizza = getPizza(item.firstPizzaId);
+      const second = item.secondPizzaId ? getPizza(item.secondPizzaId) : undefined;
+      const sizeLabel = item.size === "small" ? "Brotinho" : "Grande";
+      const flavor = second ? `${firstPizza?.name} / ${second.name}` : firstPizza?.name;
+      const rule = second ? " (preco do sabor mais caro)" : "";
+
+      return `- ${item.quantity}x ${sizeLabel} ${flavor}${rule}: ${money(item.unitPrice * item.quantity)}`;
+    });
+
+    const message = `*Novo pedido - La Fratellis Pizzeria*
+
+*Cliente:* ${customer.name}
+*WhatsApp:* ${customer.phone}
+*Endereco:* ${customer.address}
+${customer.reference.trim() ? `*Referencia:* ${customer.reference}\n` : ""}
+*Pedido:*
+${items.join("\n")}
+
+*Total:* ${money(cartTotal)}`;
+
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
+  };
+
   return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
+    <div className="phone-app">
+      {screen === "menu" && (
+        <MenuScreen
+          category={category}
+          query={query}
+          pizzas={filteredPizzas}
+          cartCount={cartCount}
+          onCategoryChange={setCategory}
+          onQueryChange={setQuery}
+          onOpenCart={() => setScreen("cart")}
+          onOpenPizza={openCustomizer}
+        />
+      )}
+
+      {screen === "customize" && selectedPizza && (
+        <CustomizeScreen
+          pizza={selectedPizza}
+          size={selectedSize}
+          secondPizzaId={secondPizzaId}
+          quantity={quantity}
+          total={customizerPrice * quantity}
+          onBack={() => setScreen("menu")}
+          onSizeChange={(size) => {
+            setSelectedSize(size);
+            if (size === "small") setSecondPizzaId(undefined);
+          }}
+          onSecondPizzaChange={setSecondPizzaId}
+          onQuantityChange={setQuantity}
+          onAdd={addToCart}
+        />
+      )}
+
+      {screen === "cart" && (
+        <CartScreen
+          cart={cart}
+          total={cartTotal}
+          onBack={() => setScreen("menu")}
+          onCheckout={() => setScreen("checkout")}
+          onMinus={(id) => changeCartQuantity(id, -1)}
+          onPlus={(id) => changeCartQuantity(id, 1)}
+          onRemove={removeCartItem}
+        />
+      )}
+
+      {screen === "checkout" && (
+        <CheckoutScreen
+          cartTotal={cartTotal}
+          customer={customer}
+          saveCustomer={saveCustomer}
+          onBack={() => setScreen("cart")}
+          onCustomerChange={updateCustomer}
+          onSaveCustomerChange={setSaveCustomer}
+          onSubmit={submitOrder}
+        />
+      )}
+
+      <BottomNav screen={screen} cartCount={cartCount} onNavigate={setScreen} />
+      {notice && <div className="notice">{notice}</div>}
+    </div>
   );
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
-function App() {
+function MenuScreen({
+  category,
+  query,
+  pizzas,
+  cartCount,
+  onCategoryChange,
+  onQueryChange,
+  onOpenCart,
+  onOpenPizza,
+}: {
+  category: "all" | PizzaCategory;
+  query: string;
+  pizzas: MenuPizza[];
+  cartCount: number;
+  onCategoryChange: (category: "all" | PizzaCategory) => void;
+  onQueryChange: (query: string) => void;
+  onOpenCart: () => void;
+  onOpenPizza: (pizza: MenuPizza) => void;
+}) {
   return (
-    <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+    <main className="screen screen--menu">
+      <section className="hero-card">
+        <img src={HERO_IMAGE} alt="La Fratellis Pizzeria" />
+        <div className="hero-card__overlay" />
+        <div className="hero-card__top">
+          <button className="hamburger" aria-label="Menu">
+            <span />
+            <span />
+            <span />
+          </button>
+          <button className="cart-button" onClick={onOpenCart}>
+            <ShoppingCart size={18} />
+            {cartCount > 0 && <strong>{cartCount}</strong>}
+          </button>
+        </div>
+        <div className="hero-card__copy">
+          <p>La Fratellis Pizzeria</p>
+          <h1>Escolha sua pizza favorita</h1>
+        </div>
+      </section>
+
+      <section className="search-panel">
+        <Search size={18} />
+        <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Buscar sabor..." />
+      </section>
+
+      <section className="tabs">
+        {categories.map((item) => (
+          <button
+            key={item.id}
+            className={category === item.id ? "is-active" : ""}
+            onClick={() => onCategoryChange(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </section>
+
+      <section className="section-heading">
+        <div>
+          <p>Cardapio</p>
+          <h2>Populares</h2>
+        </div>
+        <span>{pizzas.length} sabores</span>
+      </section>
+
+      <section className="pizza-grid">
+        {pizzas.map((pizza) => (
+          <PizzaCard key={pizza.id} pizza={pizza} onAdd={() => onOpenPizza(pizza)} />
+        ))}
+      </section>
+    </main>
+  );
+}
+
+function CustomizeScreen({
+  pizza,
+  size,
+  secondPizzaId,
+  quantity,
+  total,
+  onBack,
+  onSizeChange,
+  onSecondPizzaChange,
+  onQuantityChange,
+  onAdd,
+}: {
+  pizza: MenuPizza;
+  size: Size;
+  secondPizzaId?: number;
+  quantity: number;
+  total: number;
+  onBack: () => void;
+  onSizeChange: (size: Size) => void;
+  onSecondPizzaChange: (id: number | undefined) => void;
+  onQuantityChange: (quantity: number) => void;
+  onAdd: () => void;
+}) {
+  const secondPizza = secondPizzaId ? getPizza(secondPizzaId) : undefined;
+
+  return (
+    <main className="screen screen--detail">
+      <AppTopbar title="Montar pizza" onBack={onBack} />
+      <PizzaVisual pizza={pizza} large />
+
+      <section className="detail-card">
+        <div className="detail-title">
+          <div>
+            <h1>{pizza.name}</h1>
+            <p>{pizza.ingredients}</p>
+          </div>
+          <strong>{money(total)}</strong>
+        </div>
+
+        <div className="choice-grid">
+          <button className={size === "small" ? "is-active" : ""} onClick={() => onSizeChange("small")}>
+            Brotinho
+            <span>1 sabor - {money(pizzaPrice(pizza, "small"))}</span>
+          </button>
+          <button className={size === "large" ? "is-active" : ""} onClick={() => onSizeChange("large")}>
+            Grande
+            <span>Ate 2 sabores - {money(pizzaPrice(pizza, "large"))}</span>
+          </button>
+        </div>
+
+        {size === "large" && (
+          <section className="second-flavor">
+            <div className="mini-heading">
+              <h2>Segundo sabor</h2>
+              <p>{secondPizza ? `Selecionado: ${secondPizza.name}` : "Opcional. Cobra o sabor mais caro."}</p>
+            </div>
+            <div className="flavor-scroll">
+              <button className={!secondPizzaId ? "is-active" : ""} onClick={() => onSecondPizzaChange(undefined)}>
+                Apenas {pizza.name}
+              </button>
+              {fallbackPizzas
+                .filter((item) => item.id !== pizza.id)
+                .map((item) => (
+                  <button
+                    key={item.id}
+                    className={secondPizzaId === item.id ? "is-active" : ""}
+                    onClick={() => onSecondPizzaChange(item.id)}
+                  >
+                    {item.name}
+                    <span>{money(item.priceLarge)}</span>
+                  </button>
+                ))}
+            </div>
+          </section>
+        )}
+
+        <div className="detail-actions">
+          <QuantityControl value={quantity} onChange={onQuantityChange} />
+          <button className="primary-action" onClick={onAdd}>
+            Adicionar
+          </button>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function CartScreen({
+  cart,
+  total,
+  onBack,
+  onCheckout,
+  onMinus,
+  onPlus,
+  onRemove,
+}: {
+  cart: CartItem[];
+  total: number;
+  onBack: () => void;
+  onCheckout: () => void;
+  onMinus: (id: string) => void;
+  onPlus: (id: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  return (
+    <main className="screen">
+      <AppTopbar title="Meu pedido" onBack={onBack} />
+      {cart.length === 0 ? (
+        <section className="empty-state">
+          <ShoppingCart size={34} />
+          <h1>Seu carrinho esta vazio</h1>
+          <p>Volte ao cardapio e escolha seus sabores.</p>
+        </section>
+      ) : (
+        <>
+          <section className="cart-list">
+            {cart.map((item) => (
+              <CartRow
+                key={item.id}
+                item={item}
+                onMinus={() => onMinus(item.id)}
+                onPlus={() => onPlus(item.id)}
+                onRemove={() => onRemove(item.id)}
+              />
+            ))}
+          </section>
+          <section className="checkout-bar">
+            <div>
+              <span>Total</span>
+              <strong>{money(total)}</strong>
+            </div>
+            <button className="primary-action" onClick={onCheckout}>
+              FAZER PEDIDO
+            </button>
+          </section>
+        </>
+      )}
+    </main>
+  );
+}
+
+function CheckoutScreen({
+  cartTotal,
+  customer,
+  saveCustomer,
+  onBack,
+  onCustomerChange,
+  onSaveCustomerChange,
+  onSubmit,
+}: {
+  cartTotal: number;
+  customer: Customer;
+  saveCustomer: boolean;
+  onBack: () => void;
+  onCustomerChange: (field: keyof Customer, value: string) => void;
+  onSaveCustomerChange: (save: boolean) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <main className="screen">
+      <AppTopbar title="Checkout" onBack={onBack} />
+      <section className="checkout-card">
+        <div className="mini-heading">
+          <h1>Dados para entrega</h1>
+          <p>Usamos seu WhatsApp como identificador para recuperar dados salvos.</p>
+        </div>
+
+        <TextField label="Nome" value={customer.name} onChange={(value) => onCustomerChange("name", value)} />
+        <TextField label="WhatsApp" value={customer.phone} onChange={(value) => onCustomerChange("phone", value)} />
+        <TextField label="Endereco" value={customer.address} onChange={(value) => onCustomerChange("address", value)} />
+        <TextField
+          label="Referencia (opcional)"
+          value={customer.reference}
+          onChange={(value) => onCustomerChange("reference", value)}
+        />
+
+        <label className="save-data">
+          <input type="checkbox" checked={saveCustomer} onChange={(event) => onSaveCustomerChange(event.target.checked)} />
+          <span>Salvar meus dados neste celular</span>
+        </label>
+
+        <div className="checkout-total">
+          <span>Total do pedido</span>
+          <strong>{money(cartTotal)}</strong>
+        </div>
+
+        <button className="whatsapp-action" onClick={onSubmit}>
+          Enviar pedido no WhatsApp
+        </button>
+      </section>
+    </main>
+  );
+}
+
+function AppTopbar({ title, onBack }: { title: string; onBack: () => void }) {
+  return (
+    <header className="app-topbar">
+      <button onClick={onBack} aria-label="Voltar">
+        <ChevronLeft size={25} />
+      </button>
+      <h1>{title}</h1>
+      <span />
+    </header>
+  );
+}
+
+function BottomNav({
+  screen,
+  cartCount,
+  onNavigate,
+}: {
+  screen: Screen;
+  cartCount: number;
+  onNavigate: (screen: Screen) => void;
+}) {
+  return (
+    <nav className="bottom-nav" aria-label="Navegacao">
+      <button className={screen === "menu" ? "is-active" : ""} onClick={() => onNavigate("menu")}>
+        <Home size={21} />
+        <span>Cardapio</span>
+      </button>
+      <button className={screen === "cart" ? "is-active" : ""} onClick={() => onNavigate("cart")}>
+        <ShoppingCart size={21} />
+        <span>Carrinho</span>
+        {cartCount > 0 && <strong>{cartCount}</strong>}
+      </button>
+      <button className={screen === "checkout" ? "is-active" : ""} onClick={() => onNavigate("checkout")}>
+        <UserRound size={21} />
+        <span>Checkout</span>
+      </button>
+    </nav>
+  );
+}
+
+function PizzaCard({ pizza, onAdd }: { pizza: MenuPizza; onAdd: () => void }) {
+  return (
+    <article className="pizza-card">
+      <button className="pizza-card__visual" onClick={onAdd} aria-label={`Escolher ${pizza.name}`}>
+        <PizzaVisual pizza={pizza} />
+      </button>
+      <div className="pizza-card__body">
+        <h3>{pizza.name}</h3>
+        <p>{pizza.ingredients}</p>
+        <div>
+          <span>A partir de</span>
+          <strong>{money(pizza.priceSmall)}</strong>
+        </div>
+      </div>
+      <button className="pizza-card__add" onClick={onAdd} aria-label={`Adicionar ${pizza.name}`}>
+        <Plus size={24} />
+      </button>
+    </article>
+  );
+}
+
+function PizzaVisual({ pizza, large = false }: { pizza: MenuPizza; large?: boolean }) {
+  const candidates = imageCandidates(pizza.imageUrl);
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  const imageSrc = candidates[candidateIndex];
+
+  useEffect(() => {
+    setCandidateIndex(0);
+  }, [pizza.imageUrl]);
+
+  return (
+    <div className={large ? "pizza-visual pizza-visual--large" : "pizza-visual"}>
+      {imageSrc ? (
+        <img
+          src={imageSrc}
+          alt={pizza.name}
+          onError={() => setCandidateIndex((index) => (index + 1 < candidates.length ? index + 1 : candidates.length))}
+        />
+      ) : (
+        <div className="pizza-visual__fallback">
+          <span />
+          <strong>{pizza.name.slice(0, 2)}</strong>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuantityControl({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  return (
+    <div className="quantity-control">
+      <button onClick={() => onChange(Math.max(1, value - 1))} aria-label="Diminuir quantidade">
+        <Minus size={16} />
+      </button>
+      <span>{value}</span>
+      <button onClick={() => onChange(value + 1)} aria-label="Aumentar quantidade">
+        <Plus size={16} />
+      </button>
+    </div>
+  );
+}
+
+function CartRow({
+  item,
+  onMinus,
+  onPlus,
+  onRemove,
+}: {
+  item: CartItem;
+  onMinus: () => void;
+  onPlus: () => void;
+  onRemove: () => void;
+}) {
+  const firstPizza = getPizza(item.firstPizzaId);
+  const secondPizza = item.secondPizzaId ? getPizza(item.secondPizzaId) : undefined;
+  const title = secondPizza ? `${firstPizza?.name} / ${secondPizza.name}` : firstPizza?.name || "Pizza";
+  const sizeLabel = item.size === "small" ? "Brotinho" : "Grande";
+
+  return (
+    <article className="cart-row">
+      <PizzaVisual pizza={firstPizza || fallbackPizzas[0]} />
+      <div className="cart-row__body">
+        <h2>{title}</h2>
+        <p>
+          {sizeLabel}
+          {secondPizza ? " - preco do sabor mais caro" : ""}
+        </p>
+        <strong>{money(item.unitPrice * item.quantity)}</strong>
+      </div>
+      <div className="cart-row__side">
+        <QuantityControl value={item.quantity} onChange={(nextValue) => (nextValue > item.quantity ? onPlus() : onMinus())} />
+        <button className="remove-button" onClick={onRemove} aria-label="Remover item">
+          <Trash2 size={17} />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="text-field">
+      <span>{label}</span>
+      <input value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
   );
 }
 
