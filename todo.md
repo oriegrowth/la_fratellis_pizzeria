@@ -1,4 +1,4 @@
-# La Fratellis Pizzeria - Web App TODO
+# La Fratellis Pizzaria - Web App TODO
 
 ## Funcionalidades Principais
 
