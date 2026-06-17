@@ -1,7 +1,11 @@
-import mysql from "mysql2/promise";
+import postgres from "postgres";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is required");
+}
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const menuDataPath = path.join(root, "shared", "menuData.ts");
@@ -12,20 +16,18 @@ const pizzaImages = pizzaMatches.map((match) => ({
   imageUrl: `/images/pizzas/${match[2]}.webp`,
 }));
 
-const connection = await mysql.createConnection({
-  host: process.env.DB_HOST || "localhost",
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "la_fratellis",
-  port: Number(process.env.DB_PORT || 3306),
+const sql = postgres(process.env.DATABASE_URL, {
+  max: 1,
+  prepare: false,
+  ssl: process.env.DATABASE_URL.includes("sslmode=disable") ? false : "require",
 });
 
 try {
   for (const pizza of pizzaImages) {
-    await connection.execute("UPDATE pizzas SET imageUrl = ? WHERE name = ?", [pizza.imageUrl, pizza.name]);
+    await sql`UPDATE pizzas SET "imageUrl" = ${pizza.imageUrl}, "updatedAt" = now() WHERE name = ${pizza.name}`;
   }
 
   console.log(`Pizza image paths updated: ${pizzaImages.length}`);
 } finally {
-  await connection.end();
+  await sql.end();
 }

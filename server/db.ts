@@ -1,10 +1,12 @@
 import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { InsertUser, users, pizzas, customers, cartItems, orders, promotions } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { fallbackPizzas, fallbackPromotions } from "@shared/menuData";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _sql: ReturnType<typeof postgres> | null = null;
 let memoryCartId = 1;
 let memoryCustomerId = 1;
 let memoryOrderId = 1;
@@ -49,7 +51,12 @@ const memoryOrders: Array<{
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      _sql = postgres(process.env.DATABASE_URL, {
+        max: 1,
+        prepare: false,
+        ssl: process.env.DATABASE_URL.includes("sslmode=disable") ? false : "require",
+      });
+      _db = drizzle(_sql);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -108,7 +115,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
+    await db.insert(users).values(values).onConflictDoUpdate({
+      target: users.openId,
       set: updateSet,
     });
   } catch (error) {
@@ -209,8 +217,8 @@ export async function createOrUpdateCustomer(data: {
     };
   }
 
-  const result = await db.insert(customers).values(data);
-  return { ...data, id: result[0].insertId };
+  const result = await db.insert(customers).values(data).returning();
+  return result[0];
 }
 
 // Cart queries
@@ -252,8 +260,8 @@ export async function addToCart(data: {
     size: data.size,
     quantity: data.quantity,
     price: data.price.toString(),
-  }]);
-  return result;
+  }]).returning();
+  return result[0];
 }
 
 export async function removeFromCart(id: number) {
@@ -324,8 +332,8 @@ export async function createOrder(data: {
     items: data.items,
     totalPrice: data.totalPrice.toString(),
     status: 'pending' as const,
-  }]);
-  return result;
+  }]).returning();
+  return result[0];
 }
 
 // Promotions queries
