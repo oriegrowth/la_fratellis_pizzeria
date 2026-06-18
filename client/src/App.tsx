@@ -66,6 +66,9 @@ type Attribution = {
 const CART_KEY = "laFratellis.whatsappCart";
 const ADMIN_SESSION_KEY = "laFratellis.adminSession";
 const ATTRIBUTION_KEY = "laFratellis.attribution";
+const FIRST_PURCHASE_COUPON = "#PRIMEIRACOMPRA";
+const FIRST_PURCHASE_DISCOUNT = 0.1;
+const COUPON_DURATION_SECONDS = 180;
 const WHATSAPP_NUMBER = "5511940720211";
 const HERO_IMAGE = "/images/pizzaria_perdizes_sp.png";
 
@@ -92,6 +95,12 @@ const emptyCustomer: Customer = {
 
 function money(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function formatCountdown(seconds: number) {
+  const minutes = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const remainder = (seconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${remainder}`;
 }
 
 function onlyDigits(value: string) {
@@ -273,6 +282,9 @@ function App() {
   const [quantity, setQuantity] = useState(1);
   const [saveCustomer, setSaveCustomer] = useState(true);
   const [customer, setCustomer] = useState<Customer>(emptyCustomer);
+  const [couponCode, setCouponCode] = useState("");
+  const [couponExpiresAt, setCouponExpiresAt] = useState<number | null>(null);
+  const [couponSecondsLeft, setCouponSecondsLeft] = useState(0);
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
@@ -282,6 +294,27 @@ function App() {
   useEffect(() => {
     captureAttribution();
   }, []);
+
+  useEffect(() => {
+    if (!couponExpiresAt) {
+      setCouponSecondsLeft(0);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const secondsLeft = Math.max(0, Math.ceil((couponExpiresAt - Date.now()) / 1000));
+      setCouponSecondsLeft(secondsLeft);
+
+      if (secondsLeft === 0) {
+        setCouponExpiresAt(null);
+        showNotice("Cupom expirado");
+      }
+    };
+
+    updateCountdown();
+    const timer = window.setInterval(updateCountdown, 1000);
+    return () => window.clearInterval(timer);
+  }, [couponExpiresAt]);
 
   const filteredPizzas = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -311,6 +344,9 @@ function App() {
 
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
   const cartTotal = cart.reduce((total, item) => total + item.unitPrice * item.quantity, 0);
+  const isCouponActive = Boolean(couponExpiresAt && couponSecondsLeft > 0);
+  const couponDiscount = isCouponActive ? cartTotal * FIRST_PURCHASE_DISCOUNT : 0;
+  const checkoutTotal = Math.max(0, cartTotal - couponDiscount);
   const secondPizza = secondPizzaId ? getPizza(secondPizzaId) : undefined;
   const customizerPrice = selectedPizza
     ? selectedSize === "small"
@@ -376,6 +412,17 @@ function App() {
     setCart((current) => current.filter((item) => item.id !== id));
   };
 
+  const applyCoupon = () => {
+    if (couponCode.trim().toUpperCase() !== FIRST_PURCHASE_COUPON) {
+      showNotice("Cupom invalido");
+      return;
+    }
+
+    setCouponCode(FIRST_PURCHASE_COUPON);
+    setCouponExpiresAt(Date.now() + COUPON_DURATION_SECONDS * 1000);
+    showNotice("Cupom aplicado: 10% de desconto");
+  };
+
   const updateCustomer = (field: keyof Customer, value: string) => {
     const nextCustomer = { ...customer, [field]: value };
     setCustomer(nextCustomer);
@@ -436,13 +483,25 @@ function App() {
         details: second ? "Meio a meio - preco do sabor mais caro" : undefined,
       };
     });
+    const orderItems: SaleLine[] = isCouponActive
+      ? [
+          ...saleItems,
+          {
+            name: `Cupom ${FIRST_PURCHASE_COUPON}`,
+            quantity: 1,
+            unitPrice: -couponDiscount,
+            total: -couponDiscount,
+            details: "Desconto de primeira compra",
+          },
+        ]
+      : saleItems;
 
     try {
       await createOrderOnServer({
         customer: { ...customer },
         savedContact: saveCustomer,
-        items: saleItems,
-        total: cartTotal,
+        items: orderItems,
+        total: checkoutTotal,
         attribution: loadAttribution(),
       });
     } catch {
@@ -464,7 +523,7 @@ ${customer.reference.trim() ? `*Referencia:* ${customer.reference}\n` : ""}
 *Pedido:*
 ${items.join("\n")}
 
-*Total:* ${money(cartTotal)}`;
+${isCouponActive ? `*Cupom:* ${FIRST_PURCHASE_COUPON} (-${money(couponDiscount)})\n` : ""}*Total:* ${money(checkoutTotal)}`;
 
     const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 
@@ -526,10 +585,17 @@ ${items.join("\n")}
       {screen === "checkout" && (
         <CheckoutScreen
           cartTotal={cartTotal}
+          discount={couponDiscount}
+          finalTotal={checkoutTotal}
+          couponCode={couponCode}
+          isCouponActive={isCouponActive}
+          couponSecondsLeft={couponSecondsLeft}
           customer={customer}
           saveCustomer={saveCustomer}
           onBack={() => setScreen("cart")}
           onCustomerChange={updateCustomer}
+          onCouponChange={setCouponCode}
+          onApplyCoupon={applyCoupon}
           onSaveCustomerChange={setSaveCustomer}
           onSubmit={submitOrder}
         />
@@ -925,20 +991,34 @@ function CartScreen({
 
 function CheckoutScreen({
   cartTotal,
+  discount,
+  finalTotal,
+  couponCode,
+  isCouponActive,
+  couponSecondsLeft,
   customer,
   saveCustomer,
   onBack,
   onCustomerChange,
+  onCouponChange,
+  onApplyCoupon,
   onSaveCustomerChange,
   onSubmit,
 }: {
   cartTotal: number;
+  discount: number;
+  finalTotal: number;
+  couponCode: string;
+  isCouponActive: boolean;
+  couponSecondsLeft: number;
   customer: Customer;
   saveCustomer: boolean;
   onBack: () => void;
   onCustomerChange: (field: keyof Customer, value: string) => void;
+  onCouponChange: (value: string) => void;
+  onApplyCoupon: () => void;
   onSaveCustomerChange: (save: boolean) => void;
-  onSubmit: () => void;
+  onSubmit: () => void | Promise<void>;
 }) {
   return (
     <main className="screen">
@@ -963,9 +1043,44 @@ function CheckoutScreen({
           <span>Salvar meus dados neste celular</span>
         </label>
 
-        <div className="checkout-total">
-          <span>Total do pedido</span>
-          <strong>{money(cartTotal)}</strong>
+        <section className={isCouponActive ? "coupon-box coupon-box--active" : "coupon-box"}>
+          <div>
+            <span>Cupom de primeira compra</span>
+            <strong>{isCouponActive ? "10% aplicado" : "#PRIMEIRACOMPRA"}</strong>
+          </div>
+          <div className="coupon-form">
+            <input
+              value={couponCode}
+              onChange={(event) => onCouponChange(event.target.value)}
+              disabled={isCouponActive}
+              placeholder="#PRIMEIRACOMPRA"
+            />
+            <button type="button" onClick={onApplyCoupon} disabled={isCouponActive}>
+              Aplicar
+            </button>
+          </div>
+          {isCouponActive && (
+            <p>
+              Promocao valida por <strong>{formatCountdown(couponSecondsLeft)}</strong>
+            </p>
+          )}
+        </section>
+
+        <div className="checkout-summary">
+          <div>
+            <span>Subtotal</span>
+            <strong>{money(cartTotal)}</strong>
+          </div>
+          {discount > 0 && (
+            <div className="checkout-summary__discount">
+              <span>Desconto</span>
+              <strong>-{money(discount)}</strong>
+            </div>
+          )}
+          <div className="checkout-total">
+            <span>Total do pedido</span>
+            <strong>{money(finalTotal)}</strong>
+          </div>
         </div>
 
         <button className="whatsapp-action" onClick={onSubmit}>
