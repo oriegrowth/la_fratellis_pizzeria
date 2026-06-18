@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronLeft, Home, Minus, Plus, Search, ShoppingCart, Trash2, UserRound } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Check, ChevronLeft, Home, Lock, LogOut, Minus, Plus, Search, ShoppingCart, Trash2, UserRound } from "lucide-react";
 import { fallbackPizzas, fallbackProducts, type MenuPizza, type MenuProduct, type PizzaCategory } from "@shared/menuData";
 
 type Size = "small" | "large";
@@ -33,7 +33,26 @@ type Customer = {
   reference: string;
 };
 
+type SaleLine = {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  details?: string;
+};
+
+type SaleRecord = {
+  id: string;
+  createdAt: string;
+  customer: Customer;
+  savedContact: boolean;
+  items: SaleLine[];
+  total: number;
+};
+
 const CART_KEY = "laFratellis.whatsappCart";
+const SALES_KEY = "laFratellis.sales";
+const ADMIN_SESSION_KEY = "laFratellis.adminSession";
 const WHATSAPP_NUMBER = "5511940720211";
 const HERO_IMAGE = "/images/pizzaria_perdizes_sp.png";
 
@@ -90,6 +109,19 @@ function loadCart() {
   }
 }
 
+function loadSales() {
+  try {
+    return JSON.parse(localStorage.getItem(SALES_KEY) || "[]") as SaleRecord[];
+  } catch {
+    return [];
+  }
+}
+
+function saveSale(record: SaleRecord) {
+  const sales = loadSales();
+  localStorage.setItem(SALES_KEY, JSON.stringify([record, ...sales]));
+}
+
 function imageCandidates(imageUrl: string) {
   const candidates = [imageUrl];
 
@@ -103,6 +135,12 @@ function imageCandidates(imageUrl: string) {
 }
 
 function App() {
+  const isAdminRoute = window.location.pathname === "/admin";
+
+  if (isAdminRoute) {
+    return <AdminPanel />;
+  }
+
   const [screen, setScreen] = useState<Screen>("menu");
   const [category, setCategory] = useState<Category>("all");
   const [query, setQuery] = useState("");
@@ -247,20 +285,45 @@ function App() {
       localStorage.setItem(customerKey(customer.phone), JSON.stringify(customer));
     }
 
-    const items = cart.map((item) => {
+    const saleItems: SaleLine[] = cart.map((item) => {
       if (item.itemType === "product") {
         const product = getProduct(item.productId);
-        return `- ${item.quantity}x ${product?.name || "Bebida"}: ${money(item.unitPrice * item.quantity)}`;
+        return {
+          name: product?.name || "Bebida",
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          total: item.unitPrice * item.quantity,
+          details: "Bebida",
+        };
       }
 
       const firstPizza = getPizza(item.firstPizzaId);
       const second = item.secondPizzaId ? getPizza(item.secondPizzaId) : undefined;
       const sizeLabel = item.size === "small" ? "Brotinho" : "Grande";
       const flavor = second ? `${firstPizza?.name} / ${second.name}` : firstPizza?.name;
-      const rule = second ? " (preco do sabor mais caro)" : "";
 
-      return `- ${item.quantity}x ${sizeLabel} ${flavor}${rule}: ${money(item.unitPrice * item.quantity)}`;
+      return {
+        name: `${sizeLabel} ${flavor || "Pizza"}`,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        total: item.unitPrice * item.quantity,
+        details: second ? "Meio a meio - preco do sabor mais caro" : undefined,
+      };
     });
+
+    saveSale({
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      customer: { ...customer },
+      savedContact: saveCustomer,
+      items: saleItems,
+      total: cartTotal,
+    });
+
+    const items = saleItems.map(
+      (item) =>
+        `- ${item.quantity}x ${item.name}${item.details ? ` (${item.details})` : ""}: ${money(item.total)}`,
+    );
 
     const message = `*Novo pedido - La Fratellis Pizzeria*
 
@@ -345,6 +408,136 @@ ${items.join("\n")}
       <BottomNav screen={screen} cartCount={cartCount} onNavigate={setScreen} />
       {notice && <div className="notice">{notice}</div>}
     </div>
+  );
+}
+
+function AdminPanel() {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem(ADMIN_SESSION_KEY) === "true");
+  const [sales, setSales] = useState<SaleRecord[]>(loadSales);
+  const [login, setLogin] = useState({ user: "", password: "" });
+  const [error, setError] = useState("");
+
+  const totalRevenue = sales.reduce((sum, sale) => sum + sale.total, 0);
+  const savedContacts = sales.filter((sale) => sale.savedContact).length;
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (login.user === "admin" && login.password === "admin") {
+      localStorage.setItem(ADMIN_SESSION_KEY, "true");
+      setIsAuthenticated(true);
+      setSales(loadSales());
+      setError("");
+      return;
+    }
+
+    setError("Usuario ou senha invalidos");
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem(ADMIN_SESSION_KEY);
+    setIsAuthenticated(false);
+    setLogin({ user: "", password: "" });
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <main className="admin-shell admin-shell--login">
+        <form className="admin-login" onSubmit={handleSubmit}>
+          <div className="admin-login__icon">
+            <Lock size={24} />
+          </div>
+          <h1>Painel administrativo</h1>
+          <p>Acesse com o usuario admin e senha admin.</p>
+          <label>
+            Usuario
+            <input value={login.user} onChange={(event) => setLogin({ ...login, user: event.target.value })} />
+          </label>
+          <label>
+            Senha
+            <input
+              type="password"
+              value={login.password}
+              onChange={(event) => setLogin({ ...login, password: event.target.value })}
+            />
+          </label>
+          {error && <strong className="admin-error">{error}</strong>}
+          <button type="submit">Entrar</button>
+        </form>
+      </main>
+    );
+  }
+
+  return (
+    <main className="admin-shell">
+      <header className="admin-header">
+        <div>
+          <p>La Fratellis</p>
+          <h1>Painel administrativo</h1>
+        </div>
+        <button onClick={handleLogout}>
+          <LogOut size={18} />
+          Sair
+        </button>
+      </header>
+
+      <section className="admin-stats">
+        <article>
+          <span>Vendas</span>
+          <strong>{sales.length}</strong>
+        </article>
+        <article>
+          <span>Faturamento</span>
+          <strong>{money(totalRevenue)}</strong>
+        </article>
+        <article>
+          <span>Contatos salvos</span>
+          <strong>{savedContacts}</strong>
+        </article>
+      </section>
+
+      <section className="admin-sales">
+        <div className="admin-section-title">
+          <h2>Vendas registradas</h2>
+          <button onClick={() => setSales(loadSales())}>Atualizar</button>
+        </div>
+
+        {sales.length === 0 ? (
+          <div className="admin-empty">Nenhuma venda registrada ainda.</div>
+        ) : (
+          sales.map((sale) => (
+            <article className="admin-sale" key={sale.id}>
+              <div className="admin-sale__top">
+                <div>
+                  <h3>{sale.customer.name}</h3>
+                  <p>{new Date(sale.createdAt).toLocaleString("pt-BR")}</p>
+                </div>
+                <strong>{money(sale.total)}</strong>
+              </div>
+
+              <div className="admin-customer">
+                <span>WhatsApp: {sale.customer.phone}</span>
+                <span>Endereco: {sale.customer.address}</span>
+                {sale.customer.reference && <span>Referencia: {sale.customer.reference}</span>}
+                <span>Optou por salvar contato: {sale.savedContact ? "Sim" : "Nao"}</span>
+              </div>
+
+              <ul className="admin-items">
+                {sale.items.map((item, index) => (
+                  <li key={`${sale.id}-${index}`}>
+                    <span>
+                      {item.quantity}x {item.name}
+                      {item.details ? ` - ${item.details}` : ""}
+                    </span>
+                    <strong>{money(item.total)}</strong>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ))
+        )}
+      </section>
+    </main>
   );
 }
 
