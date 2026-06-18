@@ -48,11 +48,24 @@ type SaleRecord = {
   savedContact: boolean;
   items: SaleLine[];
   total: number;
+  attribution: Attribution;
+};
+
+type Attribution = {
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmTerm?: string;
+  utmContent?: string;
+  gclid?: string;
+  fbclid?: string;
+  landingPage?: string;
+  referrer?: string;
 };
 
 const CART_KEY = "laFratellis.whatsappCart";
-const SALES_KEY = "laFratellis.sales";
 const ADMIN_SESSION_KEY = "laFratellis.adminSession";
+const ATTRIBUTION_KEY = "laFratellis.attribution";
 const WHATSAPP_NUMBER = "5511940720211";
 const HERO_IMAGE = "/images/pizzaria_perdizes_sp.png";
 
@@ -109,17 +122,126 @@ function loadCart() {
   }
 }
 
-function loadSales() {
+function loadAttribution() {
   try {
-    return JSON.parse(localStorage.getItem(SALES_KEY) || "[]") as SaleRecord[];
+    return JSON.parse(localStorage.getItem(ATTRIBUTION_KEY) || "{}") as Attribution;
   } catch {
-    return [];
+    return {};
   }
 }
 
-function saveSale(record: SaleRecord) {
-  const sales = loadSales();
-  localStorage.setItem(SALES_KEY, JSON.stringify([record, ...sales]));
+function captureAttribution() {
+  const params = new URLSearchParams(window.location.search);
+  const hasUrlCampaign =
+    params.has("utm_source") ||
+    params.has("utm_medium") ||
+    params.has("utm_campaign") ||
+    params.has("utm_term") ||
+    params.has("utm_content") ||
+    params.has("gclid") ||
+    params.has("fbclid");
+  const hasAttribution = hasUrlCampaign || Boolean(document.referrer);
+
+  if (!hasAttribution) return;
+
+  const attribution: Attribution = {
+    utmSource: params.get("utm_source") || undefined,
+    utmMedium: params.get("utm_medium") || undefined,
+    utmCampaign: params.get("utm_campaign") || undefined,
+    utmTerm: params.get("utm_term") || undefined,
+    utmContent: params.get("utm_content") || undefined,
+    gclid: params.get("gclid") || undefined,
+    fbclid: params.get("fbclid") || undefined,
+    landingPage: window.location.href,
+    referrer: document.referrer || undefined,
+  };
+
+  if (hasUrlCampaign || !localStorage.getItem(ATTRIBUTION_KEY)) {
+    localStorage.setItem(ATTRIBUTION_KEY, JSON.stringify(attribution));
+  }
+}
+
+async function createOrderOnServer(data: {
+  customer: Customer;
+  savedContact: boolean;
+  items: SaleLine[];
+  total: number;
+  attribution: Attribution;
+}) {
+  const response = await fetch("/api/public/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to save order");
+  }
+
+  return response.json();
+}
+
+async function fetchAdminSales() {
+  const params = new URLSearchParams({ user: "admin", password: "admin" });
+  const response = await fetch(`/api/admin/orders?${params.toString()}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to load orders");
+  }
+
+  const data = await response.json();
+  return (data.orders || []).map(normalizeOrder) as SaleRecord[];
+}
+
+function normalizeOrder(order: any): SaleRecord {
+  let items: SaleLine[] = [];
+
+  try {
+    items = JSON.parse(order.items || "[]");
+  } catch {
+    items = [];
+  }
+
+  return {
+    id: String(order.id),
+    createdAt: order.createdAt,
+    customer: {
+      name: order.name,
+      phone: order.phone,
+      address: order.addressNumber ? `${order.address}, ${order.addressNumber}` : order.address,
+      reference: order.addressReference || "",
+    },
+    savedContact: Boolean(order.savedContact),
+    items,
+    total: Number(order.totalPrice ?? 0),
+    attribution: {
+      utmSource: order.campaignSource || undefined,
+      utmMedium: order.campaignMedium || undefined,
+      utmCampaign: order.campaignName || undefined,
+      utmTerm: order.campaignTerm || undefined,
+      utmContent: order.campaignContent || undefined,
+      gclid: order.gclid || undefined,
+      fbclid: order.fbclid || undefined,
+      landingPage: order.landingPage || undefined,
+      referrer: order.referrer || undefined,
+    },
+  };
+}
+
+function describeAttribution(attribution: Attribution) {
+  if (attribution.utmSource || attribution.utmCampaign) {
+    return [
+      attribution.utmSource && `Origem: ${attribution.utmSource}`,
+      attribution.utmMedium && `Midia: ${attribution.utmMedium}`,
+      attribution.utmCampaign && `Campanha: ${attribution.utmCampaign}`,
+    ].filter(Boolean).join(" | ");
+  }
+
+  if (attribution.gclid) return "Origem: Google Ads";
+  if (attribution.fbclid) return "Origem: Meta/Facebook";
+  if (attribution.referrer) return `Referencia: ${attribution.referrer}`;
+
+  return "Origem nao identificada";
 }
 
 function imageCandidates(imageUrl: string) {
@@ -156,6 +278,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
   }, [cart]);
+
+  useEffect(() => {
+    captureAttribution();
+  }, []);
 
   const filteredPizzas = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -269,7 +395,7 @@ function App() {
     }
   };
 
-  const submitOrder = () => {
+  const submitOrder = async () => {
     if (cart.length === 0) {
       showNotice("Adicione pelo menos um item ao pedido");
       setScreen("menu");
@@ -311,14 +437,18 @@ function App() {
       };
     });
 
-    saveSale({
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      customer: { ...customer },
-      savedContact: saveCustomer,
-      items: saleItems,
-      total: cartTotal,
-    });
+    try {
+      await createOrderOnServer({
+        customer: { ...customer },
+        savedContact: saveCustomer,
+        items: saleItems,
+        total: cartTotal,
+        attribution: loadAttribution(),
+      });
+    } catch {
+      showNotice("Nao foi possivel registrar o pedido. Tente novamente.");
+      return;
+    }
 
     const items = saleItems.map(
       (item) =>
@@ -413,20 +543,39 @@ ${items.join("\n")}
 
 function AdminPanel() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem(ADMIN_SESSION_KEY) === "true");
-  const [sales, setSales] = useState<SaleRecord[]>(loadSales);
+  const [sales, setSales] = useState<SaleRecord[]>([]);
   const [login, setLogin] = useState({ user: "", password: "" });
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const totalRevenue = sales.reduce((sum, sale) => sum + sale.total, 0);
   const savedContacts = sales.filter((sale) => sale.savedContact).length;
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const loadAdminSales = async () => {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      setSales(await fetchAdminSales());
+    } catch {
+      setError("Nao foi possivel carregar as vendas");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      void loadAdminSales();
+    }
+  }, [isAuthenticated]);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (login.user === "admin" && login.password === "admin") {
       localStorage.setItem(ADMIN_SESSION_KEY, "true");
       setIsAuthenticated(true);
-      setSales(loadSales());
       setError("");
       return;
     }
@@ -499,12 +648,16 @@ function AdminPanel() {
       <section className="admin-sales">
         <div className="admin-section-title">
           <h2>Vendas registradas</h2>
-          <button onClick={() => setSales(loadSales())}>Atualizar</button>
+          <button onClick={loadAdminSales}>{isLoading ? "Atualizando..." : "Atualizar"}</button>
         </div>
 
-        {sales.length === 0 ? (
+        {error && <div className="admin-empty">{error}</div>}
+
+        {!error && isLoading ? (
+          <div className="admin-empty">Carregando vendas...</div>
+        ) : !error && sales.length === 0 ? (
           <div className="admin-empty">Nenhuma venda registrada ainda.</div>
-        ) : (
+        ) : !error ? (
           sales.map((sale) => (
             <article className="admin-sale" key={sale.id}>
               <div className="admin-sale__top">
@@ -520,6 +673,7 @@ function AdminPanel() {
                 <span>Endereco: {sale.customer.address}</span>
                 {sale.customer.reference && <span>Referencia: {sale.customer.reference}</span>}
                 <span>Optou por salvar contato: {sale.savedContact ? "Sim" : "Nao"}</span>
+                <span>{describeAttribution(sale.attribution)}</span>
               </div>
 
               <ul className="admin-items">
@@ -535,7 +689,7 @@ function AdminPanel() {
               </ul>
             </article>
           ))
-        )}
+        ) : null}
       </section>
     </main>
   );

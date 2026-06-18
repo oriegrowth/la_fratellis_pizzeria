@@ -71,6 +71,7 @@ export const customers = pgTable("customers", {
   address: text("address").notNull(),
   addressNumber: varchar("addressNumber", { length: 20 }).notNull(),
   addressReference: text("addressReference"), // Optional reference
+  savedContact: boolean("savedContact").notNull().default(false),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
@@ -123,6 +124,16 @@ export const orders = pgTable("orders", {
   addressReference: text("addressReference"),
   items: text("items").notNull(), // JSON string with order items
   totalPrice: numeric("totalPrice", { precision: 10, scale: 2 }).notNull(),
+  savedContact: boolean("savedContact").notNull().default(false),
+  campaignSource: varchar("campaignSource", { length: 120 }),
+  campaignMedium: varchar("campaignMedium", { length: 120 }),
+  campaignName: varchar("campaignName", { length: 180 }),
+  campaignTerm: varchar("campaignTerm", { length: 180 }),
+  campaignContent: varchar("campaignContent", { length: 180 }),
+  gclid: varchar("gclid", { length: 255 }),
+  fbclid: varchar("fbclid", { length: 255 }),
+  landingPage: text("landingPage"),
+  referrer: text("referrer"),
   status: orderStatus("status").default("pending").notNull(),
   whatsappMessageId: varchar("whatsappMessageId", { length: 100 }), // For tracking
   createdAt: timestamp("createdAt").defaultNow().notNull(),

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { InsertUser, users, pizzas, products, customers, cartItems, orders, promotions } from "../drizzle/schema";
@@ -30,6 +30,7 @@ const memoryCustomers: Array<{
   address: string;
   addressNumber: string;
   addressReference: string | null;
+  savedContact: boolean;
   createdAt: Date;
   updatedAt: Date;
 }> = [];
@@ -43,6 +44,16 @@ const memoryOrders: Array<{
   addressReference: string | null;
   items: string;
   totalPrice: string;
+  savedContact: boolean;
+  campaignSource: string | null;
+  campaignMedium: string | null;
+  campaignName: string | null;
+  campaignTerm: string | null;
+  campaignContent: string | null;
+  gclid: string | null;
+  fbclid: string | null;
+  landingPage: string | null;
+  referrer: string | null;
   status: "pending" | "sent" | "completed" | "cancelled";
   whatsappMessageId: string | null;
   createdAt: Date;
@@ -202,6 +213,7 @@ export async function createOrUpdateCustomer(data: {
   address: string;
   addressNumber: string;
   addressReference?: string;
+  savedContact?: boolean;
 }) {
   const db = await getDb();
   if (!db) {
@@ -213,6 +225,7 @@ export async function createOrUpdateCustomer(data: {
       existing.address = data.address;
       existing.addressNumber = data.addressNumber;
       existing.addressReference = data.addressReference || null;
+      existing.savedContact = Boolean(data.savedContact);
       existing.updatedAt = now;
       return existing;
     }
@@ -224,6 +237,7 @@ export async function createOrUpdateCustomer(data: {
       address: data.address,
       addressNumber: data.addressNumber,
       addressReference: data.addressReference || null,
+      savedContact: Boolean(data.savedContact),
       createdAt: now,
       updatedAt: now,
     };
@@ -238,15 +252,20 @@ export async function createOrUpdateCustomer(data: {
       address: data.address,
       addressNumber: data.addressNumber,
       addressReference: data.addressReference || null,
+      savedContact: Boolean(data.savedContact),
     }).where(eq(customers.phone, data.phone));
     return {
       ...existing,
       ...data,
       addressReference: data.addressReference || null,
+      savedContact: Boolean(data.savedContact),
     };
   }
 
-  const result = await db.insert(customers).values(data).returning();
+  const result = await db.insert(customers).values({
+    ...data,
+    savedContact: Boolean(data.savedContact),
+  }).returning();
   return result[0];
 }
 
@@ -337,6 +356,16 @@ export async function createOrder(data: {
   addressReference?: string;
   items: string; // JSON string
   totalPrice: number;
+  savedContact?: boolean;
+  campaignSource?: string;
+  campaignMedium?: string;
+  campaignName?: string;
+  campaignTerm?: string;
+  campaignContent?: string;
+  gclid?: string;
+  fbclid?: string;
+  landingPage?: string;
+  referrer?: string;
 }) {
   const db = await getDb();
   if (!db) {
@@ -351,6 +380,16 @@ export async function createOrder(data: {
       addressReference: data.addressReference || null,
       items: data.items,
       totalPrice: data.totalPrice.toString(),
+      savedContact: Boolean(data.savedContact),
+      campaignSource: data.campaignSource || null,
+      campaignMedium: data.campaignMedium || null,
+      campaignName: data.campaignName || null,
+      campaignTerm: data.campaignTerm || null,
+      campaignContent: data.campaignContent || null,
+      gclid: data.gclid || null,
+      fbclid: data.fbclid || null,
+      landingPage: data.landingPage || null,
+      referrer: data.referrer || null,
       status: "pending" as const,
       whatsappMessageId: null,
       createdAt: now,
@@ -368,9 +407,25 @@ export async function createOrder(data: {
     addressReference: data.addressReference || null,
     items: data.items,
     totalPrice: data.totalPrice.toString(),
+    savedContact: Boolean(data.savedContact),
+    campaignSource: data.campaignSource || null,
+    campaignMedium: data.campaignMedium || null,
+    campaignName: data.campaignName || null,
+    campaignTerm: data.campaignTerm || null,
+    campaignContent: data.campaignContent || null,
+    gclid: data.gclid || null,
+    fbclid: data.fbclid || null,
+    landingPage: data.landingPage || null,
+    referrer: data.referrer || null,
     status: 'pending' as const,
   }]).returning();
   return result[0];
+}
+
+export async function getOrders() {
+  const db = await getDb();
+  if (!db) return [...memoryOrders].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return db.select().from(orders).orderBy(desc(orders.createdAt));
 }
 
 // Promotions queries
