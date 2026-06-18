@@ -37,6 +37,12 @@ const CART_KEY = "laFratellis.whatsappCart";
 const WHATSAPP_NUMBER = "5511940720211";
 const HERO_IMAGE = "/images/pizzaria_perdizes_sp.png";
 
+declare global {
+  interface Window {
+    gtag_report_conversion?: (url?: string) => false;
+  }
+}
+
 const categories: Array<{ id: Category; label: string }> = [
   { id: "all", label: "Todos" },
   { id: "classica", label: "Tradicionais" },
@@ -267,7 +273,14 @@ ${items.join("\n")}
 
 *Total:* ${money(cartTotal)}`;
 
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
+    const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+
+    if (window.gtag_report_conversion) {
+      window.gtag_report_conversion(whatsappUrl);
+      return;
+    }
+
+    window.location.href = whatsappUrl;
   };
 
   return (

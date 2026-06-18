@@ -12,6 +12,28 @@
       gtag('js', new Date());
 
       gtag('config', 'AW-18250966473');
+
+      function gtag_report_conversion(url) {
+        var callback = function () {
+          if (typeof(url) != 'undefined') {
+            window.location = url;
+          }
+        };
+
+        if (typeof gtag === 'function') {
+          gtag('event', 'conversion', {
+            'send_to': 'AW-18250966473/PS6FCL2us8EcEMnL3v5D',
+            'value': 1.0,
+            'currency': 'BRL',
+            'transaction_id': '',
+            'event_callback': callback
+          });
+        } else {
+          callback();
+        }
+
+        return false;
+      }
     </script>
     <title>La Fratellis - Pizzaria Delivery</title>
   </head>
