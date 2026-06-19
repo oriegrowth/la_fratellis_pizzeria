@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Check, ChevronLeft, Home, Lock, LogOut, Minus, Plus, Search, ShoppingCart, Trash2, UserRound } from "lucide-react";
 import { fallbackPizzas, fallbackProducts, type MenuPizza, type MenuProduct, type PizzaCategory } from "@shared/menuData";
+import { Analytics } from "@vercel/analytics/react";
 
 type Size = "small" | "large";
 type Screen = "menu" | "customize" | "cart" | "checkout";
@@ -603,6 +604,7 @@ ${isCouponActive ? `*Cupom:* ${FIRST_PURCHASE_COUPON} (-${money(couponDiscount)}
 
       <BottomNav screen={screen} cartCount={cartCount} onNavigate={setScreen} />
       {notice && <div className="notice">{notice}</div>}
+      <Analytics />
     </div>
   );
 }
