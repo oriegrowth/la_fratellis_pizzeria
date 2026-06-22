@@ -1,17 +1,23 @@
 let sqlClient: any = null;
 
+function getDatabaseUrl() {
+  return process.env.DATABASE_URL || process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL || "";
+}
+
 async function getSql() {
-  if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL is not configured in Vercel");
+  const databaseUrl = getDatabaseUrl();
+
+  if (!databaseUrl) {
+    throw new Error("No database connection URL is configured in Vercel");
   }
 
   if (!sqlClient) {
     const postgresModule = await import("postgres");
     const postgres = postgresModule.default;
-    sqlClient = postgres(process.env.DATABASE_URL, {
+    sqlClient = postgres(databaseUrl, {
       max: 1,
       prepare: false,
-      ssl: process.env.DATABASE_URL.includes("sslmode=disable") ? false : "require",
+      ssl: databaseUrl.includes("sslmode=disable") ? false : "require",
     });
   }
 
