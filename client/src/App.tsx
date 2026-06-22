@@ -496,19 +496,6 @@ function App() {
         ]
       : saleItems;
 
-    try {
-      await createOrderOnServer({
-        customer: { ...customer },
-        savedContact: saveCustomer,
-        items: orderItems,
-        total: checkoutTotal,
-        attribution: loadAttribution(),
-      });
-    } catch {
-      showNotice("Nao foi possivel registrar o pedido. Tente novamente.");
-      return;
-    }
-
     const items = saleItems.map(
       (item) =>
         `- ${item.quantity}x ${item.name}${item.details ? ` (${item.details})` : ""}: ${money(item.total)}`,
@@ -526,6 +513,19 @@ ${items.join("\n")}
 ${isCouponActive ? `*Cupom:* ${FIRST_PURCHASE_COUPON} (-${money(couponDiscount)})\n` : ""}*Total:* ${money(checkoutTotal)}`;
 
     const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+
+    try {
+      await createOrderOnServer({
+        customer: { ...customer },
+        savedContact: saveCustomer,
+        items: orderItems,
+        total: checkoutTotal,
+        attribution: loadAttribution(),
+      });
+    } catch (error) {
+      console.error("Nao foi possivel registrar o pedido antes do WhatsApp:", error);
+      showNotice("Abrindo WhatsApp para concluir o pedido");
+    }
 
     if (window.gtag_report_conversion) {
       window.gtag_report_conversion(whatsappUrl);
