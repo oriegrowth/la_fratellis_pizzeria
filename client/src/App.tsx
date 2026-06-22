@@ -184,10 +184,26 @@ async function createOrderOnServer(data: {
   });
 
   if (!response.ok) {
-    throw new Error("Failed to save order");
+    throw new Error(await readApiError(response, "Failed to save order"));
   }
 
   return response.json();
+}
+
+async function readApiError(response: Response, fallback: string) {
+  const text = await response.text();
+  if (!text) return fallback;
+
+  try {
+    const data = JSON.parse(text);
+    if (typeof data.error === "string") return data.error;
+  } catch {
+    if (text.trim().startsWith("<!doctype html>")) {
+      return "A rota da API retornou a pagina do site. Verifique o deploy das funcoes /api na Vercel.";
+    }
+  }
+
+  return text.length > 180 ? `${text.slice(0, 180)}...` : text;
 }
 
 async function fetchAdminSales() {
@@ -195,7 +211,7 @@ async function fetchAdminSales() {
   const response = await fetch(`/api/admin/orders?${params.toString()}`);
 
   if (!response.ok) {
-    throw new Error("Failed to load orders");
+    throw new Error(await readApiError(response, "Failed to load orders"));
   }
 
   const data = await response.json();
@@ -623,8 +639,9 @@ function AdminPanel() {
 
     try {
       setSales(await fetchAdminSales());
-    } catch {
-      setError("Nao foi possivel carregar as vendas");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      setError(`Nao foi possivel carregar as vendas. ${message}`);
     } finally {
       setIsLoading(false);
     }

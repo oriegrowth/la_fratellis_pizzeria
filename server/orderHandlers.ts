@@ -13,7 +13,15 @@ function stringValue(value: unknown) {
   return typeof value === "string" ? value : "";
 }
 
+function assertPersistentDatabase() {
+  if (process.env.VERCEL && !process.env.DATABASE_URL) {
+    throw new ApiError(500, "DATABASE_URL is not configured in Vercel");
+  }
+}
+
 export async function createPublicOrder(body: any) {
+  assertPersistentDatabase();
+
   const customer = body?.customer ?? {};
   const items = Array.isArray(body?.items) ? body.items : [];
   const total = Number(body?.total ?? 0);
@@ -63,6 +71,8 @@ export async function createPublicOrder(body: any) {
 }
 
 export async function listAdminOrders(query: Record<string, unknown>) {
+  assertPersistentDatabase();
+
   if (stringValue(query.user) !== "admin" || stringValue(query.password) !== "admin") {
     throw new ApiError(401, "Unauthorized");
   }
