@@ -1,4 +1,4 @@
-import { ApiError, createPublicOrder } from "../../server/orderHandlers";
+import { ApiError, createPublicOrder } from "../_ordersDb";
 
 function parseBody(body: unknown) {
   if (typeof body !== "string") return body;

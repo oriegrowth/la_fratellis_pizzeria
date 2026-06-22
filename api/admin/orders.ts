@@ -1,4 +1,4 @@
-import { ApiError, listAdminOrders } from "../../server/orderHandlers";
+import { ApiError, listAdminOrders } from "../_ordersDb";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "GET") {
