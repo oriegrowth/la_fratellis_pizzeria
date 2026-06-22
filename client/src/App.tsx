@@ -1029,19 +1029,20 @@ function CheckoutScreen({
           <p>Usamos seu WhatsApp como identificador para recuperar dados salvos.</p>
         </div>
 
-        <TextField label="Nome" value={customer.name} onChange={(value) => onCustomerChange("name", value)} />
         <TextField label="WhatsApp" value={customer.phone} onChange={(value) => onCustomerChange("phone", value)} />
+
+        <label className="save-data">
+          <input type="checkbox" checked={saveCustomer} onChange={(event) => onSaveCustomerChange(event.target.checked)} />
+          <span>Salvar contato neste celular para preencher automaticamente na proxima visita</span>
+        </label>
+
+        <TextField label="Nome" value={customer.name} onChange={(value) => onCustomerChange("name", value)} />
         <TextField label="Endereco" value={customer.address} onChange={(value) => onCustomerChange("address", value)} />
         <TextField
           label="Referencia (opcional)"
           value={customer.reference}
           onChange={(value) => onCustomerChange("reference", value)}
         />
-
-        <label className="save-data">
-          <input type="checkbox" checked={saveCustomer} onChange={(event) => onSaveCustomerChange(event.target.checked)} />
-          <span>Salvar meus dados neste celular</span>
-        </label>
 
         <section className={isCouponActive ? "coupon-box coupon-box--active" : "coupon-box"}>
           <div>

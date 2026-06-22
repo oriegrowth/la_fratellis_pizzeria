@@ -44,20 +44,27 @@ async function startServer() {
       const customer = body.customer ?? {};
       const items = Array.isArray(body.items) ? body.items : [];
       const total = Number(body.total ?? 0);
+      const orderSubtotal = items.reduce((sum: number, item: { total?: unknown }) => {
+        const lineTotal = Number(item.total ?? 0);
+        return lineTotal > 0 ? sum + lineTotal : sum;
+      }, 0);
 
-      if (!customer.name || !customer.phone || !customer.address || items.length === 0 || total <= 0) {
+      if (!customer.name || !customer.phone || !customer.address || items.length === 0 || orderSubtotal <= 0 || total < 0) {
         res.status(400).json({ error: "Invalid order payload" });
         return;
       }
 
-      const savedCustomer = await db.createOrUpdateCustomer({
-        phone: String(customer.phone),
-        name: String(customer.name),
-        address: String(customer.address),
-        addressNumber: String(customer.addressNumber || "S/N"),
-        addressReference: customer.reference ? String(customer.reference) : undefined,
-        savedContact: Boolean(body.savedContact),
-      });
+      const shouldSaveContact = Boolean(body.savedContact);
+      const savedCustomer = shouldSaveContact
+        ? await db.createOrUpdateCustomer({
+            phone: String(customer.phone),
+            name: String(customer.name),
+            address: String(customer.address),
+            addressNumber: String(customer.addressNumber || "S/N"),
+            addressReference: customer.reference ? String(customer.reference) : undefined,
+            savedContact: true,
+          })
+        : await db.getCustomerByPhone(String(customer.phone));
 
       const attribution = body.attribution ?? {};
       const order = await db.createOrder({
@@ -69,7 +76,7 @@ async function startServer() {
         addressReference: customer.reference ? String(customer.reference) : undefined,
         items: JSON.stringify(items),
         totalPrice: total,
-        savedContact: Boolean(body.savedContact),
+        savedContact: shouldSaveContact,
         campaignSource: attribution.utmSource ? String(attribution.utmSource) : undefined,
         campaignMedium: attribution.utmMedium ? String(attribution.utmMedium) : undefined,
         campaignName: attribution.utmCampaign ? String(attribution.utmCampaign) : undefined,

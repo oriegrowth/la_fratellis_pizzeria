@@ -14,8 +14,10 @@
       gtag('config', 'AW-18250966473');
 
       function gtag_report_conversion(url) {
+        var didRedirect = false;
         var callback = function () {
-          if (typeof(url) != 'undefined') {
+          if (!didRedirect && typeof(url) != 'undefined') {
+            didRedirect = true;
             window.location = url;
           }
         };
@@ -32,6 +34,7 @@
           callback();
         }
 
+        window.setTimeout(callback, 1200);
         return false;
       }
     </script>
