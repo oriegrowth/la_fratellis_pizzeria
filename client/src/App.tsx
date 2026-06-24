@@ -539,9 +539,13 @@ ${isCouponActive ? `*Cupom:* ${FIRST_PURCHASE_COUPON} (-${money(couponDiscount)}
         attribution: loadAttribution(),
       });
     } catch (error) {
-      console.error("Nao foi possivel registrar o pedido antes do WhatsApp:", error);
-      showNotice("Abrindo WhatsApp para concluir o pedido");
+      console.error("Nao foi possivel registrar o pedido:", error);
+      const msg = error instanceof Error ? error.message : "";
+      showNotice(`Erro ao registrar pedido: ${msg || "tente novamente"}`);
+      return;
     }
+
+    setCart([]);
 
     if (window.gtag_report_conversion) {
       window.gtag_report_conversion(whatsappUrl);
@@ -1046,7 +1050,7 @@ function CheckoutScreen({
           <p>Usamos seu WhatsApp como identificador para recuperar dados salvos.</p>
         </div>
 
-        <TextField label="WhatsApp" value={customer.phone} onChange={(value) => onCustomerChange("phone", value)} />
+        <TextField label="WhatsApp" value={customer.phone} onChange={(value) => onCustomerChange("phone", value)} type="tel" inputMode="numeric" />
 
         <label className="save-data">
           <input type="checkbox" checked={saveCustomer} onChange={(event) => onSaveCustomerChange(event.target.checked)} />
@@ -1298,11 +1302,23 @@ function CartRow({
   );
 }
 
-function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function TextField({
+  label,
+  value,
+  onChange,
+  type,
+  inputMode,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: React.HTMLInputTypeAttribute;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+}) {
   return (
     <label className="text-field">
       <span>{label}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} />
+      <input type={type} inputMode={inputMode} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }
