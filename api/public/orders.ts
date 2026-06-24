@@ -1,5 +1,6 @@
 function getDatabaseUrl() {
-  return process.env.DATABASE_URL || process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL || "";
+  // POSTGRES_URL é injetado pela integração Supabase↔Vercel (pooler, ideal para serverless)
+  return process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL_NON_POOLING || "";
 }
 
 function parseBody(body: unknown) {
