@@ -782,6 +782,155 @@ function AdminPanel() {
   );
 }
 
+function PromoCarousel() {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const idx = Math.round(el.scrollLeft / el.offsetWidth);
+    setActiveIndex(idx);
+  };
+
+  const promos = [
+    {
+      badge: "🔥 Promoção especial",
+      eyebrow: "Dobro de sabor",
+      title: (
+        <>
+          2 pizzas grandes
+          <br />
+          por apenas
+        </>
+      ),
+      price: "89",
+      desc: "Escolha dois sabores do cardápio. Válido para pizzas tradicionais e especiais.",
+      bg: "#b91c1c",
+      deco: "🍕",
+    },
+    {
+      badge: "⭐ Kit completo",
+      eyebrow: "Combo família",
+      title: (
+        <>
+          Pizza + brotinho
+          <br />
+          doce + refri 2L
+        </>
+      ),
+      price: "99",
+      desc: "1 pizza salgada grande + 1 brotinho doce + 1 refrigerante 2 litros.",
+      bg: "#1e3a8a",
+      deco: "🥤",
+    },
+  ];
+
+  return (
+    <section style={{ margin: "0 -18px", padding: "14px 18px 2px" }}>
+      <div
+        onScroll={handleScroll}
+        style={{
+          display: "flex",
+          gap: "12px",
+          overflowX: "auto",
+          scrollSnapType: "x mandatory",
+          scrollbarWidth: "none",
+          WebkitOverflowScrolling: "touch" as any,
+          padding: "4px 0 8px",
+        }}
+      >
+        {promos.map((promo, i) => (
+          <article
+            key={i}
+            style={{
+              flex: "0 0 calc(100% - 12px)",
+              scrollSnapAlign: "start",
+              borderRadius: "22px",
+              padding: "18px 20px",
+              background: promo.bg,
+              color: "white",
+              minHeight: "152px",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              position: "relative",
+              overflow: "hidden",
+            }}
+          >
+            <div>
+              <span
+                style={{
+                  display: "inline-block",
+                  background: "rgba(255,255,255,0.22)",
+                  borderRadius: "99px",
+                  padding: "3px 10px",
+                  fontSize: "0.68rem",
+                  fontWeight: 900,
+                  letterSpacing: "0.04em",
+                  marginBottom: "10px",
+                }}
+              >
+                {promo.badge}
+              </span>
+              <p
+                style={{
+                  margin: "0 0 3px",
+                  fontSize: "0.68rem",
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  opacity: 0.8,
+                }}
+              >
+                {promo.eyebrow}
+              </p>
+              <p style={{ margin: "0 0 4px", fontSize: "1.28rem", fontWeight: 900, lineHeight: 1.15 }}>
+                {promo.title}
+              </p>
+              <p style={{ margin: 0, fontSize: "2rem", fontWeight: 900, lineHeight: 1 }}>
+                <span style={{ fontSize: "0.88rem", verticalAlign: "super", fontWeight: 700 }}>R$</span>
+                {promo.price}
+              </p>
+            </div>
+            <p style={{ margin: 0, fontSize: "0.74rem", opacity: 0.85, lineHeight: 1.4, maxWidth: "220px" }}>
+              {promo.desc}
+            </p>
+            <span
+              style={{
+                position: "absolute",
+                right: "-14px",
+                bottom: "-20px",
+                fontSize: "6.5rem",
+                opacity: 0.13,
+                lineHeight: 1,
+                userSelect: "none",
+              }}
+            >
+              {promo.deco}
+            </span>
+          </article>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginTop: "6px", marginBottom: "4px" }}>
+        {promos.map((_, i) => (
+          <span
+            key={i}
+            style={{
+              display: "block",
+              height: "7px",
+              width: activeIndex === i ? "18px" : "7px",
+              borderRadius: "99px",
+              background: activeIndex === i ? "#f34c4c" : "#7b746d",
+              opacity: activeIndex === i ? 1 : 0.35,
+              transition: "all 0.25s",
+            }}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function MenuScreen({
   category,
   query,
@@ -829,6 +978,8 @@ function MenuScreen({
           <h1>Escolha sua pizza favorita</h1>
         </div>
       </section>
+
+      <PromoCarousel />
 
       <section className="search-panel">
         <Search size={18} />
