@@ -101,6 +101,7 @@ button {
   align-content: end;
   min-height: 180px;
   padding: 0 24px 34px;
+  text-align: center;
 }
 
 .hero-card__copy p,
@@ -113,11 +114,12 @@ button {
 }
 
 .hero-card__copy h1 {
-  max-width: 320px;
+  max-width: 100%;
   margin: 6px 0 0;
-  font-size: 2rem;
-  line-height: 0.98;
+  font-size: 1.4rem;
+  line-height: 1.2;
   letter-spacing: 0;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.75);
 }
 
 .hamburger,
