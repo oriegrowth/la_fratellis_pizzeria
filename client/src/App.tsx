@@ -563,10 +563,8 @@ ${isCouponActive ? `*Cupom:* ${FIRST_PURCHASE_COUPON} (-${money(couponDiscount)}
           query={query}
           pizzas={filteredPizzas}
           products={filteredProducts}
-          cartCount={cartCount}
           onCategoryChange={setCategory}
           onQueryChange={setQuery}
-          onOpenCart={() => setScreen("cart")}
           onOpenPizza={openCustomizer}
           onAddProduct={addProductToCart}
         />
@@ -936,10 +934,8 @@ function MenuScreen({
   query,
   pizzas,
   products,
-  cartCount,
   onCategoryChange,
   onQueryChange,
-  onOpenCart,
   onOpenPizza,
   onAddProduct,
 }: {
@@ -947,10 +943,8 @@ function MenuScreen({
   query: string;
   pizzas: MenuPizza[];
   products: MenuProduct[];
-  cartCount: number;
   onCategoryChange: (category: Category) => void;
   onQueryChange: (query: string) => void;
-  onOpenCart: () => void;
   onOpenPizza: (pizza: MenuPizza) => void;
   onAddProduct: (product: MenuProduct) => void;
 }) {
@@ -962,20 +956,9 @@ function MenuScreen({
       <section className="hero-card">
         <img src={HERO_IMAGE} alt="La Fratellis Pizzeria" />
         <div className="hero-card__overlay" />
-        <div className="hero-card__top">
-          <button className="hamburger" aria-label="Menu">
-            <span />
-            <span />
-            <span />
-          </button>
-          <button className="cart-button" onClick={onOpenCart}>
-            <ShoppingCart size={18} />
-            {cartCount > 0 && <strong>{cartCount}</strong>}
-          </button>
-        </div>
         <div className="hero-card__copy">
           <p>La Fratellis Pizzeria</p>
-          <h1>Escolha sua pizza favorita</h1>
+          <h1>Utilize o cupom #PRIMEIRACOMPRA e ganhe 10% de desconto.</h1>
         </div>
       </section>
 
