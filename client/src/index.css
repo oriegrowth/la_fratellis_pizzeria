@@ -97,9 +97,11 @@ button {
 }
 
 .hero-card__copy {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   display: grid;
   align-content: end;
-  min-height: 180px;
   padding: 0 24px 34px;
   text-align: center;
 }
