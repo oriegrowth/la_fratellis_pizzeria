@@ -994,6 +994,7 @@ function PromoCarousel({ onPromo }: { onPromo: () => void }) {
                 opacity: 0.13,
                 lineHeight: 1,
                 userSelect: "none",
+                pointerEvents: "none",
               }}
             >
               {promo.deco}
