@@ -3,7 +3,7 @@ import { Check, ChevronLeft, Home, Lock, LogOut, Minus, Plus, Search, ShoppingCa
 import { fallbackPizzas, fallbackProducts, type MenuPizza, type MenuProduct, type PizzaCategory } from "@shared/menuData";
 
 type Size = "small" | "large";
-type Screen = "menu" | "customize" | "cart" | "checkout";
+type Screen = "menu" | "customize" | "cart" | "checkout" | "promo";
 type Category = "all" | PizzaCategory | "bebida";
 
 type PizzaCartItem = {
@@ -14,6 +14,7 @@ type PizzaCartItem = {
   secondPizzaId?: number;
   quantity: number;
   unitPrice: number;
+  promoTag?: string;
 };
 
 type ProductCartItem = {
@@ -71,6 +72,10 @@ const FIRST_PURCHASE_DISCOUNT = 0.1;
 const COUPON_DURATION_SECONDS = 180;
 const WHATSAPP_NUMBER = "5511940720211";
 const HERO_IMAGE = "/images/pizzaria_perdizes_sp.png";
+
+const PROMO_TWO_PIZZAS_PRICE = 89;
+const PROMO_FIRST_PIZZA_IDS = [8, 14]; // Portuguesa, Frango com Catupiry
+const PROMO_SECOND_PIZZA_IDS = [7, 17, 23]; // Calabresa, Mussarela, Marguerita
 
 declare global {
   interface Window {
@@ -302,6 +307,9 @@ function App() {
   const [couponExpiresAt, setCouponExpiresAt] = useState<number | null>(null);
   const [couponSecondsLeft, setCouponSecondsLeft] = useState(0);
   const [notice, setNotice] = useState("");
+  const [promoFirstPizzaId, setPromoFirstPizzaId] = useState<number | undefined>();
+  const [promoSecondPizzaId, setPromoSecondPizzaId] = useState<number | undefined>();
+  const [promoDrinkId, setPromoDrinkId] = useState<number | undefined>();
 
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
@@ -418,6 +426,55 @@ function App() {
     setScreen("cart");
   };
 
+  const openPromoCheckout = () => {
+    setPromoFirstPizzaId(undefined);
+    setPromoSecondPizzaId(undefined);
+    setPromoDrinkId(undefined);
+    setScreen("promo");
+  };
+
+  const addPromoToCart = () => {
+    if (!promoFirstPizzaId || !promoSecondPizzaId) return;
+
+    const halfPrice = PROMO_TWO_PIZZAS_PRICE / 2;
+    const promoLabel = "Promoção 2 Pizzas Grandes por R$89";
+
+    const newItems: CartItem[] = [
+      {
+        id: crypto.randomUUID(),
+        size: "large",
+        firstPizzaId: promoFirstPizzaId,
+        quantity: 1,
+        unitPrice: halfPrice,
+        promoTag: promoLabel,
+      },
+      {
+        id: crypto.randomUUID(),
+        size: "large",
+        firstPizzaId: promoSecondPizzaId,
+        quantity: 1,
+        unitPrice: halfPrice,
+        promoTag: promoLabel,
+      },
+    ];
+
+    if (promoDrinkId) {
+      const drink = getProduct(promoDrinkId);
+      if (drink) {
+        newItems.push({
+          id: crypto.randomUUID(),
+          itemType: "product",
+          productId: drink.id,
+          quantity: 1,
+          unitPrice: Number(drink.price),
+        });
+      }
+    }
+
+    setCart(newItems);
+    setScreen("checkout");
+  };
+
   const changeCartQuantity = (id: string, delta: number) => {
     setCart((current) =>
       current.map((item) => (item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item)),
@@ -496,7 +553,7 @@ function App() {
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         total: item.unitPrice * item.quantity,
-        details: second ? "Meio a meio - preco do sabor mais caro" : undefined,
+        details: item.promoTag || (second ? "Meio a meio - preco do sabor mais caro" : undefined),
       };
     });
     const orderItems: SaleLine[] = isCouponActive
@@ -567,6 +624,7 @@ ${isCouponActive ? `*Cupom:* ${FIRST_PURCHASE_COUPON} (-${money(couponDiscount)}
           onQueryChange={setQuery}
           onOpenPizza={openCustomizer}
           onAddProduct={addProductToCart}
+          onOpenPromo={openPromoCheckout}
         />
       )}
 
@@ -597,6 +655,19 @@ ${isCouponActive ? `*Cupom:* ${FIRST_PURCHASE_COUPON} (-${money(couponDiscount)}
           onMinus={(id) => changeCartQuantity(id, -1)}
           onPlus={(id) => changeCartQuantity(id, 1)}
           onRemove={removeCartItem}
+        />
+      )}
+
+      {screen === "promo" && (
+        <PromoScreen
+          firstPizzaId={promoFirstPizzaId}
+          secondPizzaId={promoSecondPizzaId}
+          drinkId={promoDrinkId}
+          onBack={() => setScreen("menu")}
+          onFirstPizzaChange={setPromoFirstPizzaId}
+          onSecondPizzaChange={setPromoSecondPizzaId}
+          onDrinkChange={(id) => setPromoDrinkId(id === promoDrinkId ? undefined : id)}
+          onConfirm={addPromoToCart}
         />
       )}
 
@@ -780,7 +851,7 @@ function AdminPanel() {
   );
 }
 
-function PromoCarousel() {
+function PromoCarousel({ onPromo }: { onPromo: () => void }) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -889,9 +960,31 @@ function PromoCarousel() {
                 {promo.price}
               </p>
             </div>
-            <p style={{ margin: 0, fontSize: "0.74rem", opacity: 0.85, lineHeight: 1.4, maxWidth: "220px" }}>
-              {promo.desc}
-            </p>
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "8px" }}>
+              <p style={{ margin: 0, fontSize: "0.74rem", opacity: 0.85, lineHeight: 1.4, maxWidth: "160px" }}>
+                {promo.desc}
+              </p>
+              {i === 0 && (
+                <button
+                  onClick={onPromo}
+                  style={{
+                    flexShrink: 0,
+                    height: "36px",
+                    padding: "0 14px",
+                    border: "2px solid rgba(255,255,255,0.7)",
+                    borderRadius: "99px",
+                    background: "rgba(255,255,255,0.18)",
+                    color: "white",
+                    fontSize: "0.76rem",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Pedir agora →
+                </button>
+              )}
+            </div>
             <span
               style={{
                 position: "absolute",
@@ -938,6 +1031,7 @@ function MenuScreen({
   onQueryChange,
   onOpenPizza,
   onAddProduct,
+  onOpenPromo,
 }: {
   category: Category;
   query: string;
@@ -947,6 +1041,7 @@ function MenuScreen({
   onQueryChange: (query: string) => void;
   onOpenPizza: (pizza: MenuPizza) => void;
   onAddProduct: (product: MenuProduct) => void;
+  onOpenPromo: () => void;
 }) {
   const itemCount = pizzas.length + products.length;
   const itemLabel = category === "bebida" ? "bebidas" : category === "all" ? "itens" : "sabores";
@@ -962,7 +1057,7 @@ function MenuScreen({
         </div>
       </section>
 
-      <PromoCarousel />
+      <PromoCarousel onPromo={onOpenPromo} />
 
       <section className="search-panel">
         <Search size={18} />
@@ -1270,7 +1365,7 @@ function BottomNav({
 }) {
   return (
     <nav className="bottom-nav" aria-label="Navegacao">
-      <button className={screen === "menu" ? "is-active" : ""} onClick={() => onNavigate("menu")}>
+      <button className={screen === "menu" || screen === "promo" ? "is-active" : ""} onClick={() => onNavigate("menu")}>
         <Home size={21} />
         <span>Cardapio</span>
       </button>
@@ -1284,6 +1379,127 @@ function BottomNav({
         <span>Checkout</span>
       </button>
     </nav>
+  );
+}
+
+function PromoScreen({
+  firstPizzaId,
+  secondPizzaId,
+  drinkId,
+  onBack,
+  onFirstPizzaChange,
+  onSecondPizzaChange,
+  onDrinkChange,
+  onConfirm,
+}: {
+  firstPizzaId: number | undefined;
+  secondPizzaId: number | undefined;
+  drinkId: number | undefined;
+  onBack: () => void;
+  onFirstPizzaChange: (id: number) => void;
+  onSecondPizzaChange: (id: number) => void;
+  onDrinkChange: (id: number) => void;
+  onConfirm: () => void;
+}) {
+  const firstOptions = PROMO_FIRST_PIZZA_IDS.map((id) => getPizza(id)).filter(Boolean) as MenuPizza[];
+  const secondOptions = PROMO_SECOND_PIZZA_IDS.map((id) => getPizza(id)).filter(Boolean) as MenuPizza[];
+  const selectedDrink = drinkId ? getProduct(drinkId) : undefined;
+  const drinkTotal = selectedDrink ? Number(selectedDrink.price) : 0;
+  const total = PROMO_TWO_PIZZAS_PRICE + drinkTotal;
+  const canConfirm = firstPizzaId !== undefined && secondPizzaId !== undefined;
+
+  return (
+    <main className="screen">
+      <AppTopbar title="Promoção 2 Pizzas" onBack={onBack} />
+
+      <div className="promo-header-card">
+        <div className="promo-header-card__content">
+          <span className="promo-header-card__badge">🔥 Promoção especial</span>
+          <p className="promo-header-card__title">2 pizzas grandes</p>
+          <p className="promo-header-card__price">
+            <span>R$</span>89
+          </p>
+          <p className="promo-header-card__desc">Tradicionais e especiais. Entrega grátis em Perdizes e região.</p>
+        </div>
+        <span className="promo-header-card__deco">🍕</span>
+      </div>
+
+      <div className="promo-section">
+        <div className="mini-heading">
+          <h2>1ª pizza</h2>
+          <p>Escolha o sabor</p>
+        </div>
+        {firstOptions.map((pizza) => (
+          <button
+            key={pizza.id}
+            className={`promo-option${firstPizzaId === pizza.id ? " is-active" : ""}`}
+            onClick={() => onFirstPizzaChange(pizza.id)}
+          >
+            <PizzaVisual pizza={pizza} />
+            <div className="promo-option__info">
+              <strong>{pizza.name}</strong>
+              <p>{pizza.ingredients}</p>
+            </div>
+            <span className="promo-option__check">
+              {firstPizzaId === pizza.id && <Check size={15} />}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="promo-section">
+        <div className="mini-heading">
+          <h2>2ª pizza</h2>
+          <p>Escolha o sabor</p>
+        </div>
+        {secondOptions.map((pizza) => (
+          <button
+            key={pizza.id}
+            className={`promo-option${secondPizzaId === pizza.id ? " is-active" : ""}`}
+            onClick={() => onSecondPizzaChange(pizza.id)}
+          >
+            <PizzaVisual pizza={pizza} />
+            <div className="promo-option__info">
+              <strong>{pizza.name}</strong>
+              <p>{pizza.ingredients}</p>
+            </div>
+            <span className="promo-option__check">
+              {secondPizzaId === pizza.id && <Check size={15} />}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="promo-section">
+        <div className="mini-heading">
+          <h2>Bebida</h2>
+          <p>Opcional — adicione ao pedido</p>
+        </div>
+        <div className="drink-grid">
+          {fallbackProducts.map((drink) => (
+            <button
+              key={drink.id}
+              className={`drink-option${drinkId === drink.id ? " is-active" : ""}`}
+              onClick={() => onDrinkChange(drink.id)}
+            >
+              <ProductVisual product={drink} />
+              <strong>{drink.name}</strong>
+              <span>{money(Number(drink.price))}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <section className="checkout-bar">
+        <div>
+          <span>{canConfirm ? `Total: ${money(total)}` : "Escolha os 2 sabores"}</span>
+          {selectedDrink && <strong style={{ fontSize: "0.75rem", color: "var(--muted)" }}>+ {selectedDrink.name}</strong>}
+        </div>
+        <button className="primary-action" onClick={onConfirm} disabled={!canConfirm}>
+          FINALIZAR PEDIDO
+        </button>
+      </section>
+    </main>
   );
 }
 
