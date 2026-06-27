@@ -77,6 +77,8 @@ const PROMO_TWO_PIZZAS_PRICE = 89;
 const PROMO_FIRST_PIZZA_IDS = [8, 14]; // Portuguesa, Frango com Catupiry
 const PROMO_SECOND_PIZZA_IDS = [7, 17, 23]; // Calabresa, Mussarela, Marguerita
 
+const HIDDEN_PIZZA_IDS = [29, 32]; // Nutella com Morango, Sensação
+
 declare global {
   interface Window {
     gtag_report_conversion?: (url?: string) => false;
@@ -344,6 +346,7 @@ function App() {
     const term = query.trim().toLowerCase();
 
     return fallbackPizzas.filter((pizza) => {
+      if (HIDDEN_PIZZA_IDS.includes(pizza.id)) return false;
       const categoryMatches = category === "all" || pizza.category === category;
       const queryMatches =
         !term || pizza.name.toLowerCase().includes(term) || pizza.ingredients.toLowerCase().includes(term);
