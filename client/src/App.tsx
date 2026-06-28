@@ -1240,7 +1240,7 @@ function CheckoutScreen({
         </div>
 
         <button className="whatsapp-action" onClick={onSubmit}>
-          Enviar pedido no WhatsApp
+          Adiantar pedido no WhatsApp
         </button>
       </section>
     </main>
