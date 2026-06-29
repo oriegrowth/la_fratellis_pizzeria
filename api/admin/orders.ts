@@ -34,7 +34,7 @@ export default async function handler(req: any, res: any) {
     });
 
     try {
-      const orders = await sql`SELECT * FROM orders ORDER BY "createdAt" DESC`;
+      const orders = await sql`SELECT id, "customerId", phone, name, address, "addressNumber", "addressReference", items, "totalPrice", "savedContact", "campaignSource", "campaignMedium", "campaignName", "campaignTerm", "campaignContent", gclid, fbclid, "landingPage", referrer, status, "couponCode", "createdAt", "updatedAt" FROM orders ORDER BY "createdAt" DESC`;
       res.status(200).json({ orders });
     } finally {
       await sql.end();

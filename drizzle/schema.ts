@@ -135,10 +135,29 @@ export const orders = pgTable("orders", {
   landingPage: text("landingPage"),
   referrer: text("referrer"),
   status: orderStatus("status").default("pending").notNull(),
-  whatsappMessageId: varchar("whatsappMessageId", { length: 100 }), // For tracking
+  whatsappMessageId: varchar("whatsappMessageId", { length: 100 }),
+  couponCode: varchar("couponCode", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
 
 export type Order = typeof orders.$inferSelect;
 export type InsertOrder = typeof orders.$inferInsert;
+
+// Affiliate coupons for referral tracking
+export const coupons = pgTable("coupons", {
+  id: serial("id").primaryKey(),
+  code: varchar("code", { length: 50 }).notNull().unique(),
+  discountPercent: numeric("discountPercent", { precision: 5, scale: 2 }).notNull().default("10"),
+  referralPercent: numeric("referralPercent", { precision: 5, scale: 2 }).notNull().default("0"),
+  email: varchar("email", { length: 320 }),
+  instagram: varchar("instagram", { length: 100 }),
+  phone: varchar("phone", { length: 20 }),
+  pix: varchar("pix", { length: 200 }),
+  isActive: boolean("isActive").notNull().default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type Coupon = typeof coupons.$inferSelect;
+export type InsertCoupon = typeof coupons.$inferInsert;

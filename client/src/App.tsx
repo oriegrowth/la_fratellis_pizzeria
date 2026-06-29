@@ -50,7 +50,26 @@ type SaleRecord = {
   items: SaleLine[];
   total: number;
   attribution: Attribution;
+  status: string;
+  couponCode: string | null;
 };
+
+type CouponRecord = {
+  id: number;
+  code: string;
+  discountPercent: number;
+  referralPercent: number;
+  email: string | null;
+  instagram: string | null;
+  phone: string | null;
+  pix: string | null;
+  isActive: boolean;
+  uses: number;
+  revenue: number;
+  createdAt: string;
+};
+
+type AdminTab = "vendas" | "cupons";
 
 type Attribution = {
   utmSource?: string;
@@ -67,8 +86,6 @@ type Attribution = {
 const CART_KEY = "laFratellis.whatsappCart";
 const ADMIN_SESSION_KEY = "laFratellis.adminSession";
 const ATTRIBUTION_KEY = "laFratellis.attribution";
-const FIRST_PURCHASE_COUPON = "#PRIMEIRACOMPRA";
-const FIRST_PURCHASE_DISCOUNT = 0.1;
 const COUPON_DURATION_SECONDS = 180;
 const WHATSAPP_NUMBER = "5511940720211";
 const HERO_IMAGE = "/images/pizzaria_perdizes_sp.png";
@@ -183,6 +200,7 @@ async function createOrderOnServer(data: {
   items: SaleLine[];
   total: number;
   attribution: Attribution;
+  couponCode?: string | null;
 }) {
   const response = await fetch("/api/public/orders", {
     method: "POST",
@@ -195,6 +213,64 @@ async function createOrderOnServer(data: {
   }
 
   return response.json();
+}
+
+async function lookupCustomerByPhone(phone: string): Promise<Partial<Customer> | null> {
+  try {
+    const response = await fetch(`/api/public/customers?phone=${encodeURIComponent(phone)}`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!data.customer) return null;
+    return {
+      name: data.customer.name || "",
+      address: data.customer.address || "",
+      reference: data.customer.addressReference || "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function validateCouponCode(code: string): Promise<{ valid: boolean; discountPercent: number }> {
+  try {
+    const response = await fetch(`/api/public/coupons?code=${encodeURIComponent(code)}`);
+    if (!response.ok) return { valid: false, discountPercent: 0 };
+    const data = await response.json();
+    return { valid: Boolean(data.valid), discountPercent: Number(data.discountPercent ?? 0) };
+  } catch {
+    return { valid: false, discountPercent: 0 };
+  }
+}
+
+async function fetchAdminCoupons(): Promise<CouponRecord[]> {
+  const params = new URLSearchParams({ user: "admin", password: "admin" });
+  const response = await fetch(`/api/admin/coupons?${params}`);
+  if (!response.ok) throw new Error("Failed to load coupons");
+  const data = await response.json();
+  return (data.coupons || []).map((c: any) => ({
+    id: Number(c.id),
+    code: String(c.code),
+    discountPercent: Number(c.discountPercent),
+    referralPercent: Number(c.referralPercent),
+    email: c.email || null,
+    instagram: c.instagram || null,
+    phone: c.phone || null,
+    pix: c.pix || null,
+    isActive: Boolean(c.isActive),
+    uses: Number(c.uses ?? 0),
+    revenue: Number(c.revenue ?? 0),
+    createdAt: c.createdAt,
+  }));
+}
+
+async function updateOrderStatus(id: string, status: string): Promise<void> {
+  const params = new URLSearchParams({ user: "admin", password: "admin" });
+  const response = await fetch(`/api/admin/orders/${id}?${params}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+  if (!response.ok) throw new Error("Failed to update order status");
 }
 
 async function readApiError(response: Response, fallback: string) {
@@ -257,6 +333,8 @@ function normalizeOrder(order: any): SaleRecord {
       landingPage: order.landingPage || undefined,
       referrer: order.referrer || undefined,
     },
+    status: order.status || "pending",
+    couponCode: order.couponCode || null,
   };
 }
 
@@ -306,8 +384,10 @@ function App() {
   const [saveCustomer, setSaveCustomer] = useState(true);
   const [customer, setCustomer] = useState<Customer>(emptyCustomer);
   const [couponCode, setCouponCode] = useState("");
+  const [couponDiscountPercent, setCouponDiscountPercent] = useState(0);
   const [couponExpiresAt, setCouponExpiresAt] = useState<number | null>(null);
   const [couponSecondsLeft, setCouponSecondsLeft] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
   const [promoFirstPizzaId, setPromoFirstPizzaId] = useState<number | undefined>();
   const [promoSecondPizzaId, setPromoSecondPizzaId] = useState<number | undefined>();
@@ -372,7 +452,7 @@ function App() {
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
   const cartTotal = cart.reduce((total, item) => total + item.unitPrice * item.quantity, 0);
   const isCouponActive = Boolean(couponExpiresAt && couponSecondsLeft > 0);
-  const couponDiscount = isCouponActive ? cartTotal * FIRST_PURCHASE_DISCOUNT : 0;
+  const couponDiscount = isCouponActive ? cartTotal * (couponDiscountPercent / 100) : 0;
   const checkoutTotal = Math.max(0, cartTotal - couponDiscount);
   const secondPizza = secondPizzaId ? getPizza(secondPizzaId) : undefined;
   const customizerPrice = selectedPizza
@@ -488,15 +568,20 @@ function App() {
     setCart((current) => current.filter((item) => item.id !== id));
   };
 
-  const applyCoupon = () => {
-    if (couponCode.trim().toUpperCase() !== FIRST_PURCHASE_COUPON) {
+  const applyCoupon = async () => {
+    const code = couponCode.trim().toUpperCase();
+    if (!code) return;
+
+    const result = await validateCouponCode(code);
+    if (!result.valid) {
       showNotice("Cupom invalido");
       return;
     }
 
-    setCouponCode(FIRST_PURCHASE_COUPON);
+    setCouponCode(code);
+    setCouponDiscountPercent(result.discountPercent);
     setCouponExpiresAt(Date.now() + COUPON_DURATION_SECONDS * 1000);
-    showNotice("Cupom aplicado: 10% de desconto");
+    showNotice(`Cupom aplicado: ${result.discountPercent}% de desconto`);
   };
 
   const updateCustomer = (field: keyof Customer, value: string) => {
@@ -510,15 +595,24 @@ function App() {
           const saved = localStorage.getItem(customerKey(value));
           if (saved) {
             setCustomer({ ...JSON.parse(saved), phone: value });
+            return;
           }
         } catch {
-          return;
+          // ignore
         }
+        lookupCustomerByPhone(value).then((found) => {
+          if (found) {
+            setCustomer((prev) => ({ ...prev, phone: value, ...found }));
+            showNotice("Dados preenchidos automaticamente");
+          }
+        });
       }
     }
   };
 
   const submitOrder = async () => {
+    if (isSubmitting) return;
+
     if (cart.length === 0) {
       showNotice("Adicione pelo menos um item ao pedido");
       setScreen("menu");
@@ -529,6 +623,8 @@ function App() {
       showNotice("Preencha nome, WhatsApp e endereco");
       return;
     }
+
+    setIsSubmitting(true);
 
     if (saveCustomer) {
       localStorage.setItem(customerKey(customer.phone), JSON.stringify(customer));
@@ -563,11 +659,11 @@ function App() {
       ? [
           ...saleItems,
           {
-            name: `Cupom ${FIRST_PURCHASE_COUPON}`,
+            name: `Cupom ${couponCode}`,
             quantity: 1,
             unitPrice: -couponDiscount,
             total: -couponDiscount,
-            details: "Desconto de primeira compra",
+            details: `Desconto de ${couponDiscountPercent}%`,
           },
         ]
       : saleItems;
@@ -586,7 +682,7 @@ ${customer.reference.trim() ? `*Referencia:* ${customer.reference}\n` : ""}
 *Pedido:*
 ${items.join("\n")}
 
-${isCouponActive ? `*Cupom:* ${FIRST_PURCHASE_COUPON} (-${money(couponDiscount)})\n` : ""}*Total:* ${money(checkoutTotal)}`;
+${isCouponActive ? `*Cupom:* ${couponCode} (-${money(couponDiscount)})\n` : ""}*Total:* ${money(checkoutTotal)}`;
 
     const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 
@@ -597,11 +693,13 @@ ${isCouponActive ? `*Cupom:* ${FIRST_PURCHASE_COUPON} (-${money(couponDiscount)}
         items: orderItems,
         total: checkoutTotal,
         attribution: loadAttribution(),
+        couponCode: isCouponActive ? couponCode : null,
       });
     } catch (error) {
       console.error("Nao foi possivel registrar o pedido:", error);
       const msg = error instanceof Error ? error.message : "";
       showNotice(`Erro ao registrar pedido: ${msg || "tente novamente"}`);
+      setIsSubmitting(false);
       return;
     }
 
@@ -680,8 +778,10 @@ ${isCouponActive ? `*Cupom:* ${FIRST_PURCHASE_COUPON} (-${money(couponDiscount)}
           discount={couponDiscount}
           finalTotal={checkoutTotal}
           couponCode={couponCode}
+          couponDiscountPercent={couponDiscountPercent}
           isCouponActive={isCouponActive}
           couponSecondsLeft={couponSecondsLeft}
+          isSubmitting={isSubmitting}
           customer={customer}
           saveCustomer={saveCustomer}
           onBack={() => setScreen("cart")}
@@ -701,10 +801,23 @@ ${isCouponActive ? `*Cupom:* ${FIRST_PURCHASE_COUPON} (-${money(couponDiscount)}
 
 function AdminPanel() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem(ADMIN_SESSION_KEY) === "true");
+  const [activeTab, setActiveTab] = useState<AdminTab>("vendas");
   const [sales, setSales] = useState<SaleRecord[]>([]);
+  const [coupons, setCoupons] = useState<CouponRecord[]>([]);
   const [login, setLogin] = useState({ user: "", password: "" });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [newCoupon, setNewCoupon] = useState({
+    code: "",
+    discountPercent: "10",
+    referralPercent: "0",
+    email: "",
+    instagram: "",
+    phone: "",
+    pix: "",
+  });
+  const [couponError, setCouponError] = useState("");
+  const [isSavingCoupon, setIsSavingCoupon] = useState(false);
 
   const totalRevenue = sales.reduce((sum, sale) => sum + sale.total, 0);
   const savedContacts = sales.filter((sale) => sale.savedContact).length;
@@ -723,9 +836,82 @@ function AdminPanel() {
     }
   };
 
+  const loadCoupons = async () => {
+    try {
+      setCoupons(await fetchAdminCoupons());
+    } catch {
+      // silently fail
+    }
+  };
+
+  const toggleOrderStatus = async (sale: SaleRecord) => {
+    const nextStatus = sale.status === "completed" ? "pending" : "completed";
+    try {
+      await updateOrderStatus(sale.id, nextStatus);
+      setSales((prev) => prev.map((s) => (s.id === sale.id ? { ...s, status: nextStatus } : s)));
+    } catch {
+      // silently fail
+    }
+  };
+
+  const createCoupon = async () => {
+    setCouponError("");
+    const code = newCoupon.code.trim().toUpperCase();
+    if (!code) {
+      setCouponError("Codigo do cupom e obrigatorio");
+      return;
+    }
+
+    setIsSavingCoupon(true);
+    try {
+      const params = new URLSearchParams({ user: "admin", password: "admin" });
+      const response = await fetch(`/api/admin/coupons?${params}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          discountPercent: Number(newCoupon.discountPercent),
+          referralPercent: Number(newCoupon.referralPercent),
+          email: newCoupon.email || null,
+          instagram: newCoupon.instagram || null,
+          phone: newCoupon.phone || null,
+          pix: newCoupon.pix || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setCouponError(data.error || "Erro ao criar cupom");
+        return;
+      }
+
+      setNewCoupon({ code: "", discountPercent: "10", referralPercent: "0", email: "", instagram: "", phone: "", pix: "" });
+      await loadCoupons();
+    } catch {
+      setCouponError("Erro ao criar cupom");
+    } finally {
+      setIsSavingCoupon(false);
+    }
+  };
+
+  const toggleCouponActive = async (coupon: CouponRecord) => {
+    const params = new URLSearchParams({ user: "admin", password: "admin", id: String(coupon.id) });
+    try {
+      await fetch(`/api/admin/coupons?${params}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !coupon.isActive }),
+      });
+      setCoupons((prev) => prev.map((c) => (c.id === coupon.id ? { ...c, isActive: !coupon.isActive } : c)));
+    } catch {
+      // silently fail
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       void loadAdminSales();
+      void loadCoupons();
     }
   }, [isAuthenticated]);
 
@@ -789,67 +975,207 @@ function AdminPanel() {
         </button>
       </header>
 
-      <section className="admin-stats">
-        <article>
-          <span>Vendas</span>
-          <strong>{sales.length}</strong>
-        </article>
-        <article>
-          <span>Faturamento</span>
-          <strong>{money(totalRevenue)}</strong>
-        </article>
-        <article>
-          <span>Contatos salvos</span>
-          <strong>{savedContacts}</strong>
-        </article>
-      </section>
+      <div className="admin-tabs">
+        <button className={activeTab === "vendas" ? "admin-tab admin-tab--active" : "admin-tab"} onClick={() => setActiveTab("vendas")}>
+          Vendas
+        </button>
+        <button className={activeTab === "cupons" ? "admin-tab admin-tab--active" : "admin-tab"} onClick={() => setActiveTab("cupons")}>
+          Cupons
+        </button>
+      </div>
 
-      <section className="admin-sales">
-        <div className="admin-section-title">
-          <h2>Vendas registradas</h2>
-          <button onClick={loadAdminSales}>{isLoading ? "Atualizando..." : "Atualizar"}</button>
-        </div>
-
-        {error && <div className="admin-empty">{error}</div>}
-
-        {!error && isLoading ? (
-          <div className="admin-empty">Carregando vendas...</div>
-        ) : !error && sales.length === 0 ? (
-          <div className="admin-empty">Nenhuma venda registrada ainda.</div>
-        ) : !error ? (
-          sales.map((sale) => (
-            <article className="admin-sale" key={sale.id}>
-              <div className="admin-sale__top">
-                <div>
-                  <h3>{sale.customer.name}</h3>
-                  <p>{new Date(sale.createdAt).toLocaleString("pt-BR")}</p>
-                </div>
-                <strong>{money(sale.total)}</strong>
-              </div>
-
-              <div className="admin-customer">
-                <span>WhatsApp: {sale.customer.phone}</span>
-                <span>Endereco: {sale.customer.address}</span>
-                {sale.customer.reference && <span>Referencia: {sale.customer.reference}</span>}
-                <span>Optou por salvar contato: {sale.savedContact ? "Sim" : "Nao"}</span>
-                <span>{describeAttribution(sale.attribution)}</span>
-              </div>
-
-              <ul className="admin-items">
-                {sale.items.map((item, index) => (
-                  <li key={`${sale.id}-${index}`}>
-                    <span>
-                      {item.quantity}x {item.name}
-                      {item.details ? ` - ${item.details}` : ""}
-                    </span>
-                    <strong>{money(item.total)}</strong>
-                  </li>
-                ))}
-              </ul>
+      {activeTab === "vendas" && (
+        <>
+          <section className="admin-stats">
+            <article>
+              <span>Pedidos</span>
+              <strong>{sales.length}</strong>
             </article>
-          ))
-        ) : null}
-      </section>
+            <article>
+              <span>Faturamento</span>
+              <strong>{money(totalRevenue)}</strong>
+            </article>
+            <article>
+              <span>Contatos salvos</span>
+              <strong>{savedContacts}</strong>
+            </article>
+          </section>
+
+          <section className="admin-sales">
+            <div className="admin-section-title">
+              <h2>Pedidos</h2>
+              <button onClick={loadAdminSales}>{isLoading ? "Atualizando..." : "Atualizar"}</button>
+            </div>
+
+            {error && <div className="admin-empty">{error}</div>}
+
+            {!error && isLoading ? (
+              <div className="admin-empty">Carregando pedidos...</div>
+            ) : !error && sales.length === 0 ? (
+              <div className="admin-empty">Nenhum pedido registrado ainda.</div>
+            ) : !error ? (
+              sales.map((sale) => (
+                <article className={`admin-sale${sale.status === "completed" ? " admin-sale--done" : ""}`} key={sale.id}>
+                  <div className="admin-sale__top">
+                    <div>
+                      <h3>{sale.customer.name}</h3>
+                      <p>{new Date(sale.createdAt).toLocaleString("pt-BR")}</p>
+                    </div>
+                    <strong>{money(sale.total)}</strong>
+                  </div>
+
+                  <div className="admin-customer">
+                    <span>WhatsApp: {sale.customer.phone}</span>
+                    <span>Endereco: {sale.customer.address}</span>
+                    {sale.customer.reference && <span>Referencia: {sale.customer.reference}</span>}
+                    {sale.couponCode && <span>Cupom: {sale.couponCode}</span>}
+                    <span>{describeAttribution(sale.attribution)}</span>
+                  </div>
+
+                  <ul className="admin-items">
+                    {sale.items.map((item, index) => (
+                      <li key={`${sale.id}-${index}`}>
+                        <span>
+                          {item.quantity}x {item.name}
+                          {item.details ? ` - ${item.details}` : ""}
+                        </span>
+                        <strong>{money(item.total)}</strong>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="admin-sale__footer">
+                    <label className="admin-done-toggle">
+                      <input
+                        type="checkbox"
+                        checked={sale.status === "completed"}
+                        onChange={() => toggleOrderStatus(sale)}
+                      />
+                      <span>Pedido finalizado</span>
+                    </label>
+                  </div>
+                </article>
+              ))
+            ) : null}
+          </section>
+        </>
+      )}
+
+      {activeTab === "cupons" && (
+        <section className="admin-sales">
+          <div className="admin-section-title">
+            <h2>Cupons de afiliados</h2>
+            <button onClick={loadCoupons}>Atualizar</button>
+          </div>
+
+          <div className="admin-coupon-form">
+            <h3>Criar novo cupom</h3>
+            <div className="admin-coupon-fields">
+              <label>
+                Codigo *
+                <input
+                  value={newCoupon.code}
+                  onChange={(e) => setNewCoupon({ ...newCoupon, code: e.target.value.toUpperCase() })}
+                  placeholder="AFILIADO10"
+                />
+              </label>
+              <label>
+                Desconto para o cliente (%)
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={newCoupon.discountPercent}
+                  onChange={(e) => setNewCoupon({ ...newCoupon, discountPercent: e.target.value })}
+                />
+              </label>
+              <label>
+                Comissao do divulgador (%)
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={newCoupon.referralPercent}
+                  onChange={(e) => setNewCoupon({ ...newCoupon, referralPercent: e.target.value })}
+                />
+              </label>
+              <label>
+                Email
+                <input
+                  value={newCoupon.email}
+                  onChange={(e) => setNewCoupon({ ...newCoupon, email: e.target.value })}
+                  placeholder="email@exemplo.com"
+                />
+              </label>
+              <label>
+                Instagram
+                <input
+                  value={newCoupon.instagram}
+                  onChange={(e) => setNewCoupon({ ...newCoupon, instagram: e.target.value })}
+                  placeholder="@usuario"
+                />
+              </label>
+              <label>
+                Celular
+                <input
+                  value={newCoupon.phone}
+                  onChange={(e) => setNewCoupon({ ...newCoupon, phone: e.target.value })}
+                  placeholder="(11) 99999-9999"
+                />
+              </label>
+              <label>
+                PIX
+                <input
+                  value={newCoupon.pix}
+                  onChange={(e) => setNewCoupon({ ...newCoupon, pix: e.target.value })}
+                  placeholder="Chave PIX"
+                />
+              </label>
+            </div>
+            {couponError && <p className="admin-error">{couponError}</p>}
+            <button className="admin-coupon-save" onClick={createCoupon} disabled={isSavingCoupon}>
+              {isSavingCoupon ? "Salvando..." : "Criar cupom"}
+            </button>
+          </div>
+
+          {coupons.length === 0 ? (
+            <div className="admin-empty">Nenhum cupom criado ainda.</div>
+          ) : (
+            coupons.map((coupon) => (
+              <article className={`admin-sale${coupon.isActive ? "" : " admin-sale--done"}`} key={coupon.id}>
+                <div className="admin-sale__top">
+                  <div>
+                    <h3>{coupon.code}</h3>
+                    <p>Desconto: {coupon.discountPercent}% &nbsp;|&nbsp; Comissao: {coupon.referralPercent}%</p>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <strong>{money(coupon.revenue)}</strong>
+                    <p style={{ fontSize: "0.75rem", color: "#666" }}>{coupon.uses} uso{coupon.uses !== 1 ? "s" : ""}</p>
+                  </div>
+                </div>
+
+                <div className="admin-customer">
+                  {coupon.email && <span>Email: {coupon.email}</span>}
+                  {coupon.instagram && <span>Instagram: {coupon.instagram}</span>}
+                  {coupon.phone && <span>Celular: {coupon.phone}</span>}
+                  {coupon.pix && <span>PIX: {coupon.pix}</span>}
+                </div>
+
+                <div className="admin-sale__footer">
+                  <label className="admin-done-toggle">
+                    <input
+                      type="checkbox"
+                      checked={coupon.isActive}
+                      onChange={() => toggleCouponActive(coupon)}
+                    />
+                    <span>Cupom ativo</span>
+                  </label>
+                </div>
+              </article>
+            ))
+          )}
+        </section>
+      )}
     </main>
   );
 }
@@ -1248,8 +1574,10 @@ function CheckoutScreen({
   discount,
   finalTotal,
   couponCode,
+  couponDiscountPercent,
   isCouponActive,
   couponSecondsLeft,
+  isSubmitting,
   customer,
   saveCustomer,
   onBack,
@@ -1263,8 +1591,10 @@ function CheckoutScreen({
   discount: number;
   finalTotal: number;
   couponCode: string;
+  couponDiscountPercent: number;
   isCouponActive: boolean;
   couponSecondsLeft: number;
+  isSubmitting: boolean;
   customer: Customer;
   saveCustomer: boolean;
   onBack: () => void;
@@ -1300,15 +1630,15 @@ function CheckoutScreen({
 
         <section className={isCouponActive ? "coupon-box coupon-box--active" : "coupon-box"}>
           <div>
-            <span>Cupom de primeira compra</span>
-            <strong>{isCouponActive ? "10% aplicado" : "#PRIMEIRACOMPRA"}</strong>
+            <span>Cupom de desconto</span>
+            <strong>{isCouponActive ? `${couponDiscountPercent}% aplicado` : "Tem cupom?"}</strong>
           </div>
           <div className="coupon-form">
             <input
               value={couponCode}
               onChange={(event) => onCouponChange(event.target.value)}
               disabled={isCouponActive}
-              placeholder="#PRIMEIRACOMPRA"
+              placeholder="Digite o cupom"
             />
             <button type="button" onClick={onApplyCoupon} disabled={isCouponActive}>
               Aplicar
@@ -1338,8 +1668,8 @@ function CheckoutScreen({
           </div>
         </div>
 
-        <button className="whatsapp-action" onClick={onSubmit}>
-          Adiantar pedido no WhatsApp
+        <button className="whatsapp-action" onClick={onSubmit} disabled={isSubmitting}>
+          {isSubmitting ? "Enviando..." : "Adiantar pedido no WhatsApp"}
         </button>
       </section>
     </main>

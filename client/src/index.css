@@ -557,6 +557,11 @@ button {
   color: #073b1b;
 }
 
+.whatsapp-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .cart-list {
   display: grid;
   gap: 12px;
@@ -1059,6 +1064,120 @@ button {
 
 .admin-items strong {
   white-space: nowrap;
+}
+
+.admin-sale--done {
+  opacity: 0.6;
+}
+
+.admin-sale__footer {
+  border-top: 1px solid #e3e7ee;
+  padding-top: 12px;
+}
+
+.admin-done-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #475467;
+  cursor: pointer;
+}
+
+.admin-done-toggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #16a34a;
+  cursor: pointer;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 8px;
+  max-width: 1120px;
+  margin: 0 auto 22px;
+  border-bottom: 2px solid #e3e7ee;
+  padding-bottom: 0;
+}
+
+.admin-tab {
+  border: 0;
+  background: transparent;
+  padding: 10px 18px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #667085;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  border-radius: 0;
+}
+
+.admin-tab--active {
+  color: var(--red-strong);
+  border-bottom-color: var(--red-strong);
+}
+
+.admin-coupon-form {
+  border: 1px solid #e3e7ee;
+  border-radius: 8px;
+  background: white;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 12px rgba(23, 32, 51, 0.06);
+}
+
+.admin-coupon-form h3 {
+  margin: 0 0 16px;
+  font-size: 1rem;
+}
+
+.admin-coupon-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.admin-coupon-fields label {
+  display: grid;
+  gap: 5px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #475467;
+}
+
+.admin-coupon-fields input {
+  height: 40px;
+  border: 1px solid #d0d5dd;
+  border-radius: 7px;
+  padding: 0 10px;
+  font-size: 0.9rem;
+  outline: 0;
+}
+
+.admin-coupon-fields input:focus {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px rgba(243, 76, 76, 0.13);
+}
+
+.admin-coupon-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  border: 0;
+  border-radius: 8px;
+  background: #16a34a;
+  color: white;
+  padding: 0 20px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.admin-coupon-save:disabled {
+  opacity: 0.6;
 }
 
 /* ── Promo screen ──────────────────────────────────── */

@@ -124,6 +124,21 @@ CREATE TABLE IF NOT EXISTS orders (
   referrer text,
   status order_status NOT NULL DEFAULT 'pending',
   "whatsappMessageId" varchar(100),
+  "couponCode" varchar(50),
+  "createdAt" timestamp NOT NULL DEFAULT now(),
+  "updatedAt" timestamp NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS coupons (
+  id serial PRIMARY KEY,
+  code varchar(50) NOT NULL UNIQUE,
+  "discountPercent" numeric(5, 2) NOT NULL DEFAULT 10,
+  "referralPercent" numeric(5, 2) NOT NULL DEFAULT 0,
+  email varchar(320),
+  instagram varchar(100),
+  phone varchar(20),
+  pix varchar(200),
+  "isActive" boolean NOT NULL DEFAULT true,
   "createdAt" timestamp NOT NULL DEFAULT now(),
   "updatedAt" timestamp NOT NULL DEFAULT now()
 );
@@ -169,4 +184,9 @@ FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 DROP TRIGGER IF EXISTS set_orders_updated_at ON orders;
 CREATE TRIGGER set_orders_updated_at
 BEFORE UPDATE ON orders
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS set_coupons_updated_at ON coupons;
+CREATE TRIGGER set_coupons_updated_at
+BEFORE UPDATE ON coupons
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
