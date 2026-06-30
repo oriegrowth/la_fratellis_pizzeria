@@ -448,7 +448,7 @@ function App() {
     return <AdminPanel />;
   }
 
-  if (path === "/parceiro") {
+  if (path === "/parceiro" || path === "/parceiros") {
     return <PartnerPanel />;
   }
 
