@@ -1,5 +1,5 @@
-import { getDatabaseUrl, getSql, parseBody } from "../_lib/db";
-import { requireRole } from "../_lib/auth";
+import { getDatabaseUrl, getSql, parseBody } from "../_lib/db.js";
+import { requireRole } from "../_lib/auth.js";
 
 const VALID_STATUSES = ["pending", "active", "disabled"] as const;
 

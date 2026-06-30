@@ -1,4 +1,4 @@
-import { getDatabaseUrl, getSql, parseBody } from "../_lib/db";
+import { getDatabaseUrl, getSql, parseBody } from "../_lib/db.js";
 import {
   hashPassword,
   verifyPassword,
@@ -6,7 +6,7 @@ import {
   setSessionCookie,
   clearSessionCookie,
   requireRole,
-} from "../_lib/auth";
+} from "../_lib/auth.js";
 
 // Consolidated partner auth endpoint (Vercel Hobby plan caps a deployment at 12 functions).
 //   GET                  -> current logged-in partner profile ("me")

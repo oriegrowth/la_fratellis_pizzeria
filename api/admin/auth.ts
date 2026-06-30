@@ -1,11 +1,11 @@
-import { getDatabaseUrl, getSql, parseBody } from "../_lib/db";
+import { getDatabaseUrl, getSql, parseBody } from "../_lib/db.js";
 import {
   hashPassword,
   verifyPassword,
   signSession,
   setSessionCookie,
   clearSessionCookie,
-} from "../_lib/auth";
+} from "../_lib/auth.js";
 
 // Consolidated admin auth endpoint (Vercel Hobby plan caps a deployment at 12 functions).
 //   POST ?action=login  -> login

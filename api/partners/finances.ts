@@ -1,6 +1,6 @@
-import { getDatabaseUrl, getSql } from "../_lib/db";
-import { requireRole } from "../_lib/auth";
-import { computeOpenPeriod } from "../_lib/partners";
+import { getDatabaseUrl, getSql } from "../_lib/db.js";
+import { requireRole } from "../_lib/auth.js";
+import { computeOpenPeriod } from "../_lib/partners.js";
 
 // Consolidated partner finances endpoint (Vercel Hobby plan caps a deployment at 12 functions).
 //   GET ?view=sales (default) -> open-period sales report + per-order breakdown
