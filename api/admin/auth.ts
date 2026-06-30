@@ -1,10 +1,26 @@
 import { getDatabaseUrl, getSql, parseBody } from "../_lib/db";
-import { verifyPassword, signSession, setSessionCookie } from "../_lib/auth";
+import { verifyPassword, signSession, setSessionCookie, clearSessionCookie } from "../_lib/auth";
 
+// Consolidated admin auth endpoint (Vercel Hobby plan caps a deployment at 12 functions).
+//   POST ?action=login  -> login
+//   POST ?action=logout -> logout
 export default async function handler(req: any, res: any) {
   try {
     if (req.method !== "POST") {
       res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+
+    const action = String(req.query?.action ?? "");
+
+    if (action === "logout") {
+      clearSessionCookie(res);
+      res.status(200).json({ ok: true });
+      return;
+    }
+
+    if (action !== "login") {
+      res.status(400).json({ error: "Acao invalida" });
       return;
     }
 
@@ -26,8 +42,8 @@ export default async function handler(req: any, res: any) {
     const sql = await getSql(databaseUrl);
     try {
       const rows = await sql`
-        SELECT id, "passwordHash", status FROM accounts
-        WHERE username = ${username} AND role = 'partner'
+        SELECT id, "passwordHash" FROM accounts
+        WHERE username = ${username} AND role = 'admin' AND status = 'active'
         LIMIT 1
       `;
 
@@ -36,18 +52,13 @@ export default async function handler(req: any, res: any) {
         return;
       }
 
-      if (rows[0].status === "disabled") {
-        res.status(403).json({ error: "Conta desativada. Fale com o administrador." });
-        return;
-      }
-
-      setSessionCookie(res, signSession({ accountId: rows[0].id, role: "partner" }));
+      setSessionCookie(res, signSession({ accountId: rows[0].id, role: "admin" }));
       res.status(200).json({ ok: true });
     } finally {
       await sql.end();
     }
   } catch (error) {
-    console.error("[Partner] Login error:", error);
+    console.error("[Admin] Auth error:", error);
     res.status(500).json({ error: error instanceof Error ? error.message : "Internal error" });
   }
 }

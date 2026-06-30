@@ -340,7 +340,7 @@ async function fetchAdminPayouts(): Promise<PayoutRecord[]> {
 }
 
 async function updateOrderStatus(id: string, status: string): Promise<void> {
-  const response = await fetch(`/api/admin/orders/${id}`, {
+  const response = await fetch(`/api/admin/orders?id=${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status }),
@@ -1062,7 +1062,7 @@ function AdminPanel() {
     setError("");
 
     try {
-      const response = await fetch(`/api/admin/login`, {
+      const response = await fetch(`/api/admin/auth?action=login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: login.user, password: login.password }),
@@ -1083,7 +1083,7 @@ function AdminPanel() {
 
   const handleLogout = async () => {
     try {
-      await fetch(`/api/admin/logout`, { method: "POST" });
+      await fetch(`/api/admin/auth?action=logout`, { method: "POST" });
     } catch {
       // ignore
     }
@@ -1242,6 +1242,10 @@ function AdminPanel() {
 
           <div className="admin-coupon-form">
             <h3>Criar novo cupom</h3>
+            <p className="admin-coupon-hint">
+              Para suas proprias campanhas, basta o codigo e o desconto. Os campos abaixo
+              (comissao e contato) sao opcionais e servem para cupons de divulgadores.
+            </p>
             <div className="admin-coupon-fields">
               <label>
                 Codigo *
@@ -1262,7 +1266,7 @@ function AdminPanel() {
                 />
               </label>
               <label>
-                Comissao do divulgador (%)
+                Comissao do divulgador (%) (opcional)
                 <input
                   type="number"
                   min="0"
@@ -1272,7 +1276,7 @@ function AdminPanel() {
                 />
               </label>
               <label>
-                Email
+                Email (opcional)
                 <input
                   value={newCoupon.email}
                   onChange={(e) => setNewCoupon({ ...newCoupon, email: e.target.value })}
@@ -1280,7 +1284,7 @@ function AdminPanel() {
                 />
               </label>
               <label>
-                Instagram
+                Instagram (opcional)
                 <input
                   value={newCoupon.instagram}
                   onChange={(e) => setNewCoupon({ ...newCoupon, instagram: e.target.value })}
@@ -1288,7 +1292,7 @@ function AdminPanel() {
                 />
               </label>
               <label>
-                Celular
+                Celular (opcional)
                 <input
                   value={newCoupon.phone}
                   onChange={(e) => setNewCoupon({ ...newCoupon, phone: e.target.value })}
@@ -1296,7 +1300,7 @@ function AdminPanel() {
                 />
               </label>
               <label>
-                PIX
+                PIX (opcional)
                 <input
                   value={newCoupon.pix}
                   onChange={(e) => setNewCoupon({ ...newCoupon, pix: e.target.value })}

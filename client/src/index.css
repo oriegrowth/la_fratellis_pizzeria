@@ -1133,6 +1133,13 @@ button {
   font-size: 1rem;
 }
 
+.admin-coupon-hint {
+  margin: -8px 0 16px;
+  font-size: 0.8rem;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
 .admin-coupon-fields {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

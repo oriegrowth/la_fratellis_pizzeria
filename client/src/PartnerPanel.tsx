@@ -82,7 +82,7 @@ export function PartnerPanel() {
   const [payoutMessage, setPayoutMessage] = useState("");
 
   const loadAccount = async () => {
-    const response = await fetch("/api/partners/me");
+    const response = await fetch("/api/partners/auth");
     if (response.ok) {
       const data = await response.json();
       setAccount(data.account);
@@ -116,7 +116,7 @@ export function PartnerPanel() {
 
   const loadReport = async () => {
     try {
-      const response = await fetch("/api/partners/sales");
+      const response = await fetch("/api/partners/finances?view=sales");
       if (response.ok) setReport(await response.json());
     } catch {
       // ignore
@@ -125,7 +125,7 @@ export function PartnerPanel() {
 
   const loadPayouts = async () => {
     try {
-      const response = await fetch("/api/partners/payouts");
+      const response = await fetch("/api/partners/finances?view=payouts");
       if (response.ok) {
         const data = await response.json();
         setPayouts(data.payouts || []);
@@ -156,7 +156,8 @@ export function PartnerPanel() {
     setIsSubmitting(true);
 
     try {
-      const endpoint = mode === "login" ? "/api/partners/login" : "/api/partners/signup";
+      const endpoint =
+        mode === "login" ? "/api/partners/auth?action=login" : "/api/partners/auth?action=signup";
       const body =
         mode === "login"
           ? { username: form.username, password: form.password }
@@ -183,7 +184,7 @@ export function PartnerPanel() {
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/partners/logout", { method: "POST" });
+      await fetch("/api/partners/auth?action=logout", { method: "POST" });
     } catch {
       // ignore
     }
@@ -222,7 +223,7 @@ export function PartnerPanel() {
 
   const toggleCoupon = async (coupon: PartnerCoupon) => {
     try {
-      const response = await fetch(`/api/partners/coupons/${coupon.id}`, {
+      const response = await fetch(`/api/partners/coupons?id=${coupon.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !coupon.isActive }),
@@ -238,7 +239,7 @@ export function PartnerPanel() {
   const requestPayout = async () => {
     setPayoutMessage("");
     try {
-      const response = await fetch("/api/partners/payouts", { method: "POST" });
+      const response = await fetch("/api/partners/finances", { method: "POST" });
       if (!response.ok) {
         setPayoutMessage(await readError(response, "Nao foi possivel solicitar o saque."));
         return;
