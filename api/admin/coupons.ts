@@ -1,36 +1,9 @@
-function getDatabaseUrl() {
-  return process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL_NON_POOLING || "";
-}
-
-function parseBody(body: unknown) {
-  if (typeof body !== "string") return body ?? {};
-  try {
-    return JSON.parse(body);
-  } catch {
-    return {};
-  }
-}
-
-async function getSql(databaseUrl: string) {
-  const postgresModule = await import("postgres");
-  const postgres = postgresModule.default;
-  return postgres(databaseUrl, {
-    max: 1,
-    prepare: false,
-    ssl: databaseUrl.includes("sslmode=disable") ? false : "require",
-    connect_timeout: 10,
-  });
-}
+import { getDatabaseUrl, getSql, parseBody } from "../_lib/db";
+import { requireRole } from "../_lib/auth";
 
 export default async function handler(req: any, res: any) {
   try {
-    const user = Array.isArray(req.query?.user) ? req.query.user[0] : req.query?.user;
-    const password = Array.isArray(req.query?.password) ? req.query.password[0] : req.query?.password;
-
-    if (user !== "admin" || password !== "admin") {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+    if (!requireRole(req, res, "admin")) return;
 
     const databaseUrl = getDatabaseUrl();
     if (!databaseUrl) {
@@ -45,11 +18,13 @@ export default async function handler(req: any, res: any) {
         const coupons = await sql`
           SELECT
             c.*,
+            a.name AS "partnerName",
             COUNT(o.id)::int AS uses,
             COALESCE(SUM(o."totalPrice"), 0)::numeric AS revenue
           FROM coupons c
           LEFT JOIN orders o ON o."couponCode" = c.code
-          GROUP BY c.id
+          LEFT JOIN accounts a ON a.id = c."accountId"
+          GROUP BY c.id, a.name
           ORDER BY c."createdAt" DESC
         `;
         res.status(200).json({ coupons });

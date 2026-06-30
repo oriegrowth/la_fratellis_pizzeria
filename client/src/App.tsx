@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Check, ChevronLeft, Home, Lock, LogOut, Minus, Plus, Search, ShoppingCart, Trash2, UserRound } from "lucide-react";
 import { fallbackPizzas, fallbackProducts, type MenuPizza, type MenuProduct, type PizzaCategory } from "@shared/menuData";
+import { PartnerPanel } from "./PartnerPanel";
 
 type Size = "small" | "large";
 type Screen = "menu" | "customize" | "cart" | "checkout" | "promo";
@@ -52,6 +53,7 @@ type SaleRecord = {
   attribution: Attribution;
   status: string;
   couponCode: string | null;
+  partnerName: string | null;
 };
 
 type CouponRecord = {
@@ -67,9 +69,42 @@ type CouponRecord = {
   uses: number;
   revenue: number;
   createdAt: string;
+  partnerName?: string | null;
 };
 
-type AdminTab = "vendas" | "cupons";
+type PartnerRecord = {
+  id: number;
+  username: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  instagram: string | null;
+  pix: string | null;
+  commissionPercent: number;
+  status: "pending" | "active" | "disabled";
+  totalSales: number;
+  ordersCount: number;
+  pendingPayouts: number;
+  createdAt: string;
+};
+
+type PayoutRecord = {
+  id: number;
+  accountId: number;
+  periodStart: string;
+  periodEnd: string;
+  totalSales: number;
+  commissionAmount: number;
+  status: "pending" | "paid" | "rejected";
+  paymentNote: string | null;
+  requestedAt: string;
+  paidAt: string | null;
+  partnerName?: string;
+  partnerUsername?: string;
+  partnerPix?: string | null;
+};
+
+type AdminTab = "vendas" | "cupons" | "parceiros" | "saques";
 
 type Attribution = {
   utmSource?: string;
@@ -84,7 +119,6 @@ type Attribution = {
 };
 
 const CART_KEY = "laFratellis.whatsappCart";
-const ADMIN_SESSION_KEY = "laFratellis.adminSession";
 const ATTRIBUTION_KEY = "laFratellis.attribution";
 const COUPON_DURATION_SECONDS = 180;
 const WHATSAPP_NUMBER = "5511940720211";
@@ -243,8 +277,7 @@ async function validateCouponCode(code: string): Promise<{ valid: boolean; disco
 }
 
 async function fetchAdminCoupons(): Promise<CouponRecord[]> {
-  const params = new URLSearchParams({ user: "admin", password: "admin" });
-  const response = await fetch(`/api/admin/coupons?${params}`);
+  const response = await fetch(`/api/admin/coupons`);
   if (!response.ok) throw new Error("Failed to load coupons");
   const data = await response.json();
   return (data.coupons || []).map((c: any) => ({
@@ -260,12 +293,54 @@ async function fetchAdminCoupons(): Promise<CouponRecord[]> {
     uses: Number(c.uses ?? 0),
     revenue: Number(c.revenue ?? 0),
     createdAt: c.createdAt,
+    partnerName: c.partnerName || null,
+  }));
+}
+
+async function fetchAdminPartners(): Promise<PartnerRecord[]> {
+  const response = await fetch(`/api/admin/partners`);
+  if (!response.ok) throw new Error("Failed to load partners");
+  const data = await response.json();
+  return (data.partners || []).map((p: any) => ({
+    id: Number(p.id),
+    username: String(p.username),
+    name: String(p.name),
+    email: p.email || null,
+    phone: p.phone || null,
+    instagram: p.instagram || null,
+    pix: p.pix || null,
+    commissionPercent: Number(p.commissionPercent ?? 0),
+    status: p.status,
+    totalSales: Number(p.totalSales ?? 0),
+    ordersCount: Number(p.ordersCount ?? 0),
+    pendingPayouts: Number(p.pendingPayouts ?? 0),
+    createdAt: p.createdAt,
+  }));
+}
+
+async function fetchAdminPayouts(): Promise<PayoutRecord[]> {
+  const response = await fetch(`/api/admin/payouts`);
+  if (!response.ok) throw new Error("Failed to load payouts");
+  const data = await response.json();
+  return (data.payouts || []).map((p: any) => ({
+    id: Number(p.id),
+    accountId: Number(p.accountId),
+    periodStart: p.periodStart,
+    periodEnd: p.periodEnd,
+    totalSales: Number(p.totalSales ?? 0),
+    commissionAmount: Number(p.commissionAmount ?? 0),
+    status: p.status,
+    paymentNote: p.paymentNote || null,
+    requestedAt: p.requestedAt,
+    paidAt: p.paidAt || null,
+    partnerName: p.partnerName,
+    partnerUsername: p.partnerUsername,
+    partnerPix: p.partnerPix || null,
   }));
 }
 
 async function updateOrderStatus(id: string, status: string): Promise<void> {
-  const params = new URLSearchParams({ user: "admin", password: "admin" });
-  const response = await fetch(`/api/admin/orders/${id}?${params}`, {
+  const response = await fetch(`/api/admin/orders/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status }),
@@ -290,8 +365,7 @@ async function readApiError(response: Response, fallback: string) {
 }
 
 async function fetchAdminSales() {
-  const params = new URLSearchParams({ user: "admin", password: "admin" });
-  const response = await fetch(`/api/admin/orders?${params.toString()}`);
+  const response = await fetch(`/api/admin/orders`);
 
   if (!response.ok) {
     throw new Error(await readApiError(response, "Failed to load orders"));
@@ -335,6 +409,7 @@ function normalizeOrder(order: any): SaleRecord {
     },
     status: order.status || "pending",
     couponCode: order.couponCode || null,
+    partnerName: order.partnerName || null,
   };
 }
 
@@ -367,10 +442,14 @@ function imageCandidates(imageUrl: string) {
 }
 
 function App() {
-  const isAdminRoute = window.location.pathname === "/admin";
+  const path = window.location.pathname;
 
-  if (isAdminRoute) {
+  if (path === "/admin") {
     return <AdminPanel />;
+  }
+
+  if (path === "/parceiro") {
+    return <PartnerPanel />;
   }
 
   const [screen, setScreen] = useState<Screen>("menu");
@@ -800,10 +879,13 @@ ${isCouponActive ? `*Cupom:* ${couponCode} (-${money(couponDiscount)})\n` : ""}*
 }
 
 function AdminPanel() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem(ADMIN_SESSION_KEY) === "true");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [activeTab, setActiveTab] = useState<AdminTab>("vendas");
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [coupons, setCoupons] = useState<CouponRecord[]>([]);
+  const [partners, setPartners] = useState<PartnerRecord[]>([]);
+  const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [login, setLogin] = useState({ user: "", password: "" });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -844,6 +926,48 @@ function AdminPanel() {
     }
   };
 
+  const loadPartners = async () => {
+    try {
+      setPartners(await fetchAdminPartners());
+    } catch {
+      // silently fail
+    }
+  };
+
+  const loadPayouts = async () => {
+    try {
+      setPayouts(await fetchAdminPayouts());
+    } catch {
+      // silently fail
+    }
+  };
+
+  const updatePartner = async (partner: PartnerRecord, changes: { status?: string; commissionPercent?: number }) => {
+    try {
+      const response = await fetch(`/api/admin/partners?id=${partner.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(changes),
+      });
+      if (response.ok) await loadPartners();
+    } catch {
+      // silently fail
+    }
+  };
+
+  const resolvePayout = async (payout: PayoutRecord, status: "paid" | "rejected", paymentNote?: string) => {
+    try {
+      const response = await fetch(`/api/admin/payouts?id=${payout.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, paymentNote: paymentNote || null }),
+      });
+      if (response.ok) await loadPayouts();
+    } catch {
+      // silently fail
+    }
+  };
+
   const toggleOrderStatus = async (sale: SaleRecord) => {
     const nextStatus = sale.status === "completed" ? "pending" : "completed";
     try {
@@ -864,8 +988,7 @@ function AdminPanel() {
 
     setIsSavingCoupon(true);
     try {
-      const params = new URLSearchParams({ user: "admin", password: "admin" });
-      const response = await fetch(`/api/admin/coupons?${params}`, {
+      const response = await fetch(`/api/admin/coupons`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -895,9 +1018,8 @@ function AdminPanel() {
   };
 
   const toggleCouponActive = async (coupon: CouponRecord) => {
-    const params = new URLSearchParams({ user: "admin", password: "admin", id: String(coupon.id) });
     try {
-      await fetch(`/api/admin/coupons?${params}`, {
+      await fetch(`/api/admin/coupons?id=${coupon.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !coupon.isActive }),
@@ -908,31 +1030,74 @@ function AdminPanel() {
     }
   };
 
+  // Probe an authenticated endpoint on mount; a 200 means the session cookie is valid.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`/api/admin/coupons`);
+        if (!cancelled) setIsAuthenticated(response.ok);
+      } catch {
+        if (!cancelled) setIsAuthenticated(false);
+      } finally {
+        if (!cancelled) setIsCheckingAuth(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (isAuthenticated) {
       void loadAdminSales();
       void loadCoupons();
+      void loadPartners();
+      void loadPayouts();
     }
   }, [isAuthenticated]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setError("");
 
-    if (login.user === "admin" && login.password === "admin") {
-      localStorage.setItem(ADMIN_SESSION_KEY, "true");
-      setIsAuthenticated(true);
-      setError("");
-      return;
+    try {
+      const response = await fetch(`/api/admin/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: login.user, password: login.password }),
+      });
+
+      if (response.ok) {
+        setIsAuthenticated(true);
+        setLogin({ user: "", password: "" });
+        return;
+      }
+
+      const data = await response.json().catch(() => ({}));
+      setError(data.error || "Usuario ou senha invalidos");
+    } catch {
+      setError("Nao foi possivel entrar. Tente novamente.");
     }
-
-    setError("Usuario ou senha invalidos");
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem(ADMIN_SESSION_KEY);
+  const handleLogout = async () => {
+    try {
+      await fetch(`/api/admin/logout`, { method: "POST" });
+    } catch {
+      // ignore
+    }
     setIsAuthenticated(false);
     setLogin({ user: "", password: "" });
   };
+
+  if (isCheckingAuth) {
+    return (
+      <main className="admin-shell admin-shell--login">
+        <div className="admin-empty">Carregando...</div>
+      </main>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
@@ -942,7 +1107,7 @@ function AdminPanel() {
             <Lock size={24} />
           </div>
           <h1>Painel administrativo</h1>
-          <p>Acesse com o usuario admin e senha admin.</p>
+          <p>Acesse com seu usuario e senha.</p>
           <label>
             Usuario
             <input value={login.user} onChange={(event) => setLogin({ ...login, user: event.target.value })} />
@@ -981,6 +1146,12 @@ function AdminPanel() {
         </button>
         <button className={activeTab === "cupons" ? "admin-tab admin-tab--active" : "admin-tab"} onClick={() => setActiveTab("cupons")}>
           Cupons
+        </button>
+        <button className={activeTab === "parceiros" ? "admin-tab admin-tab--active" : "admin-tab"} onClick={() => setActiveTab("parceiros")}>
+          Parceiros
+        </button>
+        <button className={activeTab === "saques" ? "admin-tab admin-tab--active" : "admin-tab"} onClick={() => setActiveTab("saques")}>
+          Saques
         </button>
       </div>
 
@@ -1029,6 +1200,7 @@ function AdminPanel() {
                     <span>Endereco: {sale.customer.address}</span>
                     {sale.customer.reference && <span>Referencia: {sale.customer.reference}</span>}
                     {sale.couponCode && <span>Cupom: {sale.couponCode}</span>}
+                    {sale.partnerName && <span>Parceiro: {sale.partnerName}</span>}
                     <span>{describeAttribution(sale.attribution)}</span>
                   </div>
 
@@ -1155,6 +1327,7 @@ function AdminPanel() {
                 </div>
 
                 <div className="admin-customer">
+                  {coupon.partnerName && <span>Parceiro: {coupon.partnerName}</span>}
                   {coupon.email && <span>Email: {coupon.email}</span>}
                   {coupon.instagram && <span>Instagram: {coupon.instagram}</span>}
                   {coupon.phone && <span>Celular: {coupon.phone}</span>}
@@ -1176,7 +1349,154 @@ function AdminPanel() {
           )}
         </section>
       )}
+
+      {activeTab === "parceiros" && (
+        <section className="admin-sales">
+          <div className="admin-section-title">
+            <h2>Parceiros</h2>
+            <button onClick={loadPartners}>Atualizar</button>
+          </div>
+
+          {partners.length === 0 ? (
+            <div className="admin-empty">Nenhum parceiro cadastrado ainda.</div>
+          ) : (
+            partners.map((partner) => (
+              <AdminPartnerCard key={partner.id} partner={partner} onUpdate={updatePartner} />
+            ))
+          )}
+        </section>
+      )}
+
+      {activeTab === "saques" && (
+        <section className="admin-sales">
+          <div className="admin-section-title">
+            <h2>Solicitacoes de saque</h2>
+            <button onClick={loadPayouts}>Atualizar</button>
+          </div>
+
+          {payouts.length === 0 ? (
+            <div className="admin-empty">Nenhuma solicitacao de saque ainda.</div>
+          ) : (
+            payouts.map((payout) => (
+              <AdminPayoutCard key={payout.id} payout={payout} onResolve={resolvePayout} />
+            ))
+          )}
+        </section>
+      )}
     </main>
+  );
+}
+
+function AdminPartnerCard({
+  partner,
+  onUpdate,
+}: {
+  partner: PartnerRecord;
+  onUpdate: (partner: PartnerRecord, changes: { status?: string; commissionPercent?: number }) => void;
+}) {
+  const [commission, setCommission] = useState(String(partner.commissionPercent));
+
+  const statusLabel =
+    partner.status === "active" ? "Ativo" : partner.status === "pending" ? "Pendente" : "Desativado";
+
+  return (
+    <article className={`admin-sale${partner.status === "active" ? "" : " admin-sale--done"}`}>
+      <div className="admin-sale__top">
+        <div>
+          <h3>{partner.name}</h3>
+          <p>@{partner.username} &nbsp;|&nbsp; <span className={`admin-badge admin-badge--${partner.status}`}>{statusLabel}</span></p>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <strong>{money(partner.totalSales)}</strong>
+          <p style={{ fontSize: "0.75rem", color: "#666" }}>{partner.ordersCount} venda{partner.ordersCount !== 1 ? "s" : ""}</p>
+        </div>
+      </div>
+
+      <div className="admin-customer">
+        {partner.email && <span>Email: {partner.email}</span>}
+        {partner.phone && <span>Celular: {partner.phone}</span>}
+        {partner.instagram && <span>Instagram: {partner.instagram}</span>}
+        {partner.pix && <span>PIX: {partner.pix}</span>}
+        {partner.pendingPayouts > 0 && <span>Saques pendentes: {partner.pendingPayouts}</span>}
+      </div>
+
+      <div className="admin-sale__footer admin-partner-actions">
+        <label className="admin-commission-field">
+          Comissao (%)
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={commission}
+            onChange={(e) => setCommission(e.target.value)}
+          />
+        </label>
+        <button onClick={() => onUpdate(partner, { commissionPercent: Number(commission) })}>
+          Salvar comissao
+        </button>
+        {partner.status !== "active" && (
+          <button onClick={() => onUpdate(partner, { status: "active" })}>Aprovar</button>
+        )}
+        {partner.status === "active" && (
+          <button onClick={() => onUpdate(partner, { status: "disabled" })}>Desativar</button>
+        )}
+        {partner.status === "disabled" && (
+          <button onClick={() => onUpdate(partner, { status: "active" })}>Reativar</button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function AdminPayoutCard({
+  payout,
+  onResolve,
+}: {
+  payout: PayoutRecord;
+  onResolve: (payout: PayoutRecord, status: "paid" | "rejected", paymentNote?: string) => void;
+}) {
+  const [note, setNote] = useState("");
+
+  const statusLabel =
+    payout.status === "paid" ? "Pago" : payout.status === "pending" ? "Pendente" : "Rejeitado";
+
+  return (
+    <article className={`admin-sale${payout.status === "pending" ? "" : " admin-sale--done"}`}>
+      <div className="admin-sale__top">
+        <div>
+          <h3>{payout.partnerName}</h3>
+          <p>
+            {new Date(payout.periodStart).toLocaleDateString("pt-BR")} -{" "}
+            {new Date(payout.periodEnd).toLocaleDateString("pt-BR")} &nbsp;|&nbsp;{" "}
+            <span className={`admin-badge admin-badge--${payout.status}`}>{statusLabel}</span>
+          </p>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <strong>{money(payout.commissionAmount)}</strong>
+          <p style={{ fontSize: "0.75rem", color: "#666" }}>Vendas: {money(payout.totalSales)}</p>
+        </div>
+      </div>
+
+      <div className="admin-customer">
+        {payout.partnerPix && <span>PIX: {payout.partnerPix}</span>}
+        <span>Solicitado em: {new Date(payout.requestedAt).toLocaleString("pt-BR")}</span>
+        {payout.paidAt && <span>Pago em: {new Date(payout.paidAt).toLocaleString("pt-BR")}</span>}
+        {payout.paymentNote && <span>Observacao: {payout.paymentNote}</span>}
+      </div>
+
+      {payout.status === "pending" && (
+        <div className="admin-sale__footer admin-partner-actions">
+          <input
+            className="admin-payout-note"
+            placeholder="Observacao (opcional)"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <button onClick={() => onResolve(payout, "paid", note)}>Marcar como pago</button>
+          <button onClick={() => onResolve(payout, "rejected", note)}>Rejeitar</button>
+        </div>
+      )}
+    </article>
   );
 }
 

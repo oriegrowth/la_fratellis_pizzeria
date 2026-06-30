@@ -1,15 +1,5 @@
-function getDatabaseUrl() {
-  return process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL_NON_POOLING || "";
-}
-
-function parseBody(body: unknown) {
-  if (typeof body !== "string") return body ?? {};
-  try {
-    return JSON.parse(body);
-  } catch {
-    return {};
-  }
-}
+import { getDatabaseUrl, getSql, parseBody } from "../../_lib/db";
+import { requireRole } from "../../_lib/auth";
 
 const VALID_STATUSES = ["pending", "sent", "completed", "cancelled"] as const;
 
@@ -20,13 +10,7 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const user = Array.isArray(req.query?.user) ? req.query.user[0] : req.query?.user;
-    const password = Array.isArray(req.query?.password) ? req.query.password[0] : req.query?.password;
-
-    if (user !== "admin" || password !== "admin") {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+    if (!requireRole(req, res, "admin")) return;
 
     const id = Array.isArray(req.query?.id) ? req.query.id[0] : req.query?.id;
     if (!id || isNaN(Number(id))) {
@@ -48,14 +32,7 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const postgresModule = await import("postgres");
-    const postgres = postgresModule.default;
-    const sql = postgres(databaseUrl, {
-      max: 1,
-      prepare: false,
-      ssl: databaseUrl.includes("sslmode=disable") ? false : "require",
-      connect_timeout: 10,
-    });
+    const sql = await getSql(databaseUrl);
 
     try {
       const updated = await sql`

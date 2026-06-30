@@ -1,7 +1,5 @@
-function getDatabaseUrl() {
-  // POSTGRES_URL é injetado pela integração Supabase↔Vercel (pooler, ideal para serverless)
-  return process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL_NON_POOLING || "";
-}
+import { getDatabaseUrl, getSql } from "../_lib/db";
+import { requireRole } from "../_lib/auth";
 
 export default async function handler(req: any, res: any) {
   try {
@@ -10,13 +8,7 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const user = Array.isArray(req.query?.user) ? req.query.user[0] : req.query?.user;
-    const password = Array.isArray(req.query?.password) ? req.query.password[0] : req.query?.password;
-
-    if (user !== "admin" || password !== "admin") {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+    if (!requireRole(req, res, "admin")) return;
 
     const databaseUrl = getDatabaseUrl();
     if (!databaseUrl) {
@@ -24,17 +16,21 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const postgresModule = await import("postgres");
-    const postgres = postgresModule.default;
-    const sql = postgres(databaseUrl, {
-      max: 1,
-      prepare: false,
-      ssl: databaseUrl.includes("sslmode=disable") ? false : "require",
-      connect_timeout: 10,
-    });
+    const sql = await getSql(databaseUrl);
 
     try {
-      const orders = await sql`SELECT id, "customerId", phone, name, address, "addressNumber", "addressReference", items, "totalPrice", "savedContact", "campaignSource", "campaignMedium", "campaignName", "campaignTerm", "campaignContent", gclid, fbclid, "landingPage", referrer, status, "couponCode", "createdAt", "updatedAt" FROM orders ORDER BY "createdAt" DESC`;
+      const orders = await sql`
+        SELECT
+          o.id, o."customerId", o.phone, o.name, o.address, o."addressNumber", o."addressReference",
+          o.items, o."totalPrice", o."savedContact", o."campaignSource", o."campaignMedium",
+          o."campaignName", o."campaignTerm", o."campaignContent", o.gclid, o.fbclid, o."landingPage",
+          o.referrer, o.status, o."couponCode", o."createdAt", o."updatedAt",
+          a.name AS "partnerName"
+        FROM orders o
+        LEFT JOIN coupons c ON c.code = o."couponCode"
+        LEFT JOIN accounts a ON a.id = c."accountId"
+        ORDER BY o."createdAt" DESC
+      `;
       res.status(200).json({ orders });
     } finally {
       await sql.end();
