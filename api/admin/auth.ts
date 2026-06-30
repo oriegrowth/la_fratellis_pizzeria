@@ -1,5 +1,11 @@
 import { getDatabaseUrl, getSql, parseBody } from "../_lib/db";
-import { verifyPassword, signSession, setSessionCookie, clearSessionCookie } from "../_lib/auth";
+import {
+  hashPassword,
+  verifyPassword,
+  signSession,
+  setSessionCookie,
+  clearSessionCookie,
+} from "../_lib/auth";
 
 // Consolidated admin auth endpoint (Vercel Hobby plan caps a deployment at 12 functions).
 //   POST ?action=login  -> login
@@ -41,6 +47,25 @@ export default async function handler(req: any, res: any) {
 
     const sql = await getSql(databaseUrl);
     try {
+      // First-run bootstrap: if no admin account exists yet, the first login creates it
+      // with the submitted credentials (replaces the manual seed-admin step).
+      const adminCount = await sql`SELECT count(*)::int AS n FROM accounts WHERE role = 'admin'`;
+      if (adminCount[0].n === 0) {
+        if (password.length < 6) {
+          res.status(400).json({ error: "Defina uma senha de admin com pelo menos 6 caracteres" });
+          return;
+        }
+        const passwordHash = await hashPassword(password);
+        const inserted = await sql`
+          INSERT INTO accounts (role, username, "passwordHash", name, status)
+          VALUES ('admin', ${username}, ${passwordHash}, ${username}, 'active')
+          RETURNING id
+        `;
+        setSessionCookie(res, signSession({ accountId: inserted[0].id, role: "admin" }));
+        res.status(201).json({ ok: true, created: true });
+        return;
+      }
+
       const rows = await sql`
         SELECT id, "passwordHash" FROM accounts
         WHERE username = ${username} AND role = 'admin' AND status = 'active'
