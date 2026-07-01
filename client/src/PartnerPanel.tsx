@@ -1,5 +1,15 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Lock, LogOut } from "lucide-react";
+import { Lock, LogOut, Percent, Ticket, Link2, Wallet, BarChart3 } from "lucide-react";
+
+const PARTNER_HERO_IMAGE = "/images/pizzas/pizza_calabresa_especial_03b39d74.webp";
+
+const PARTNER_PERKS = [
+  { icon: Percent, title: "10% de comissao", desc: "Ganhe em cada venda feita com seu cupom ou seu link." },
+  { icon: Ticket, title: "Cupom exclusivo", desc: "Crie seu proprio codigo de desconto com o seu nome." },
+  { icon: Link2, title: "Link rastreavel", desc: "Toda compra que vier pelo seu link conta como sua, mesmo sem cupom." },
+  { icon: Wallet, title: "Saque no seu PIX", desc: "Solicite o pagamento quando quiser, direto na sua chave." },
+  { icon: BarChart3, title: "Acompanhe tudo", desc: "Veja vendas e comissoes do periodo em tempo real." },
+];
 
 type PartnerAccount = {
   id: number;
@@ -312,11 +322,36 @@ export function PartnerPanel() {
 
   if (!account) {
     return (
-      <main className="admin-shell admin-shell--login">
-        <form className="admin-login" onSubmit={handleAuth}>
-          <div className="admin-login__icon">
-            <Lock size={24} />
+      <main className="partner-auth">
+        <aside
+          className="partner-auth__hero"
+          style={{ backgroundImage: `url(${PARTNER_HERO_IMAGE})` }}
+        >
+          <div className="partner-auth__hero-overlay" />
+          <div className="partner-auth__hero-content">
+            <p className="partner-auth__brand">La Fratellis Pizzeria</p>
+            <h2>Seja parceiro e ganhe divulgando a melhor pizza de Perdizes.</h2>
+            <ul className="partner-auth__perks">
+              {PARTNER_PERKS.map(({ icon: Icon, title, desc }) => (
+                <li key={title}>
+                  <span className="partner-auth__perk-icon">
+                    <Icon size={20} />
+                  </span>
+                  <div>
+                    <strong>{title}</strong>
+                    <span>{desc}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
+        </aside>
+
+        <section className="partner-auth__panel">
+          <form className="admin-login" onSubmit={handleAuth}>
+            <div className="admin-login__icon">
+              <Lock size={24} />
+            </div>
           <h1>Area do parceiro</h1>
           <p>{mode === "login" ? "Acesse sua conta de parceiro." : "Crie sua conta de parceiro."}</p>
 
@@ -369,7 +404,8 @@ export function PartnerPanel() {
           >
             {mode === "login" ? "Nao tem conta? Cadastre-se" : "Ja tem conta? Entrar"}
           </button>
-        </form>
+          </form>
+        </section>
       </main>
     );
   }
