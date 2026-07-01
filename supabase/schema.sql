@@ -143,9 +143,13 @@ CREATE TABLE IF NOT EXISTS orders (
   status order_status NOT NULL DEFAULT 'pending',
   "whatsappMessageId" varchar(100),
   "couponCode" varchar(50),
+  "partnerRef" varchar(100),
   "createdAt" timestamp NOT NULL DEFAULT now(),
   "updatedAt" timestamp NOT NULL DEFAULT now()
 );
+
+-- Backfill the partner referral-link tracking column on pre-existing databases.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS "partnerRef" varchar(100);
 
 CREATE TABLE IF NOT EXISTS coupons (
   id serial PRIMARY KEY,
@@ -157,6 +161,7 @@ CREATE TABLE IF NOT EXISTS coupons (
   phone varchar(20),
   pix varchar(200),
   "isActive" boolean NOT NULL DEFAULT true,
+  "firstPurchaseOnly" boolean NOT NULL DEFAULT false,
   "accountId" integer,
   "createdAt" timestamp NOT NULL DEFAULT now(),
   "updatedAt" timestamp NOT NULL DEFAULT now()
@@ -164,6 +169,8 @@ CREATE TABLE IF NOT EXISTS coupons (
 
 -- Backfill the partner ownership column on databases created before partners existed.
 ALTER TABLE coupons ADD COLUMN IF NOT EXISTS "accountId" integer;
+-- Internal first-purchase-only coupons (e.g. PRIMEIRACOMPRA): only valid for phones with no cadastro.
+ALTER TABLE coupons ADD COLUMN IF NOT EXISTS "firstPurchaseOnly" boolean NOT NULL DEFAULT false;
 
 -- Login accounts shared by admins and partners. Separate from `customers` (storefront buyers).
 CREATE TABLE IF NOT EXISTS accounts (
@@ -176,7 +183,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   phone varchar(20),
   instagram varchar(100),
   pix varchar(200),
-  "commissionPercent" numeric(5, 2) NOT NULL DEFAULT 0,
+  "commissionPercent" numeric(5, 2) NOT NULL DEFAULT 10,
   status account_status NOT NULL DEFAULT 'pending',
   "createdAt" timestamp NOT NULL DEFAULT now(),
   "updatedAt" timestamp NOT NULL DEFAULT now()

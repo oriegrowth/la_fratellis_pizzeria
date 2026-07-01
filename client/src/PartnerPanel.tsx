@@ -80,6 +80,21 @@ export function PartnerPanel() {
   const [couponError, setCouponError] = useState("");
   const [isSavingCoupon, setIsSavingCoupon] = useState(false);
   const [payoutMessage, setPayoutMessage] = useState("");
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const referralLink = account
+    ? `${window.location.origin}/?ref=${encodeURIComponent(account.username)}`
+    : "";
+
+  const copyReferralLink = async () => {
+    try {
+      await navigator.clipboard.writeText(referralLink);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      // ignore
+    }
+  };
 
   const loadAccount = async () => {
     const response = await fetch("/api/partners/auth");
@@ -378,6 +393,23 @@ export function PartnerPanel() {
           <div className="admin-section-title">
             <h2>Meus cupons</h2>
             <button onClick={loadCoupons}>Atualizar</button>
+          </div>
+
+          <div className="admin-coupon-form">
+            <h3>Seu link de divulgacao</h3>
+            <p style={{ fontSize: "0.85rem", color: "#444" }}>
+              Compartilhe este link. Toda compra que chegar por ele fica registrada como sua origem,
+              mesmo que o cliente nao use um cupom.
+            </p>
+            <div className="admin-coupon-fields">
+              <label>
+                Link
+                <input value={referralLink} readOnly onFocus={(e) => e.target.select()} />
+              </label>
+            </div>
+            <button className="admin-coupon-save" onClick={copyReferralLink}>
+              {linkCopied ? "Link copiado!" : "Copiar link"}
+            </button>
           </div>
 
           {isActive && (

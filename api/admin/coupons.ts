@@ -36,6 +36,7 @@ export default async function handler(req: any, res: any) {
         const code = String(body.code ?? "").trim().toUpperCase();
         const discountPercent = Number(body.discountPercent ?? 10);
         const referralPercent = Number(body.referralPercent ?? 0);
+        const firstPurchaseOnly = Boolean(body.firstPurchaseOnly);
 
         if (!code) {
           res.status(400).json({ error: "Codigo do cupom e obrigatorio" });
@@ -48,7 +49,7 @@ export default async function handler(req: any, res: any) {
         }
 
         const inserted = await sql`
-          INSERT INTO coupons (code, "discountPercent", "referralPercent", email, instagram, phone, pix, "isActive")
+          INSERT INTO coupons (code, "discountPercent", "referralPercent", email, instagram, phone, pix, "isActive", "firstPurchaseOnly")
           VALUES (
             ${code},
             ${discountPercent.toString()},
@@ -57,7 +58,8 @@ export default async function handler(req: any, res: any) {
             ${body.instagram ? String(body.instagram) : null},
             ${body.phone ? String(body.phone) : null},
             ${body.pix ? String(body.pix) : null},
-            true
+            true,
+            ${firstPurchaseOnly}
           )
           RETURNING *
         `;

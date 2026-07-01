@@ -81,12 +81,13 @@ export default async function handler(req: any, res: any) {
 
       const attribution = body.attribution ?? {};
       const couponCode = body.couponCode ? String(body.couponCode).trim().toUpperCase() : null;
+      const partnerRef = attribution.ref ? String(attribution.ref).trim().toLowerCase().slice(0, 100) : null;
       const order = await sql`
         INSERT INTO orders (
           "customerId", phone, name, address, "addressNumber", "addressReference",
           items, "totalPrice", "savedContact",
           "campaignSource", "campaignMedium", "campaignName", "campaignTerm", "campaignContent",
-          gclid, fbclid, "landingPage", referrer, status, "couponCode"
+          gclid, fbclid, "landingPage", referrer, status, "couponCode", "partnerRef"
         )
         VALUES (
           ${customerId},
@@ -108,7 +109,8 @@ export default async function handler(req: any, res: any) {
           ${attribution.landingPage ? String(attribution.landingPage) : null},
           ${attribution.referrer ? String(attribution.referrer) : null},
           'pending',
-          ${couponCode}
+          ${couponCode},
+          ${partnerRef}
         )
         RETURNING *
       `;

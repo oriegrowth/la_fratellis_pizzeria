@@ -15,6 +15,9 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
+    const phoneParam = Array.isArray(req.query?.phone) ? req.query.phone[0] : req.query?.phone;
+    const phone = phoneParam ? String(phoneParam) : "";
+
     const databaseUrl = getDatabaseUrl();
     if (!databaseUrl) {
       res.status(200).json({ valid: false });
@@ -32,7 +35,7 @@ export default async function handler(req: any, res: any) {
 
     try {
       const rows = await sql`
-        SELECT code, "discountPercent"
+        SELECT code, "discountPercent", "accountId", "firstPurchaseOnly"
         FROM coupons
         WHERE code = ${String(code).trim().toUpperCase()} AND "isActive" = true
         LIMIT 1
@@ -43,10 +46,26 @@ export default async function handler(req: any, res: any) {
         return;
       }
 
+      // Internal first-purchase coupon (e.g. PRIMEIRACOMPRA): only valid for customers with no
+      // existing registration. "cadastro" = a row in the customers table for that phone.
+      if (rows[0].firstPurchaseOnly) {
+        const digits = phone.replace(/\D/g, "");
+        if (digits.length < 10) {
+          res.status(200).json({ valid: false, reason: "phone_required" });
+          return;
+        }
+        const existing = await sql`SELECT id FROM customers WHERE phone = ${phone} LIMIT 1`;
+        if (existing.length > 0) {
+          res.status(200).json({ valid: false, reason: "already_registered" });
+          return;
+        }
+      }
+
       res.status(200).json({
         valid: true,
         code: rows[0].code,
         discountPercent: Number(rows[0].discountPercent),
+        isPartner: rows[0].accountId !== null && rows[0].accountId !== undefined,
       });
     } finally {
       await sql.end();

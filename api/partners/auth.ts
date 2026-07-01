@@ -104,8 +104,9 @@ async function signup(req: any, res: any) {
     }
 
     const passwordHash = await hashPassword(password);
+    // Partners are auto-approved (active) on signup with the standard 10% commission.
     const inserted = await sql`
-      INSERT INTO accounts (role, username, "passwordHash", name, email, phone, instagram, pix, status)
+      INSERT INTO accounts (role, username, "passwordHash", name, email, phone, instagram, pix, status, "commissionPercent")
       VALUES (
         'partner',
         ${username},
@@ -115,7 +116,8 @@ async function signup(req: any, res: any) {
         ${body.phone ? String(body.phone) : null},
         ${body.instagram ? String(body.instagram) : null},
         ${body.pix ? String(body.pix) : null},
-        'pending'
+        'active',
+        10
       )
       RETURNING id
     `;

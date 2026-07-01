@@ -54,6 +54,8 @@ type SaleRecord = {
   status: string;
   couponCode: string | null;
   partnerName: string | null;
+  partnerRef: string | null;
+  partnerRefName: string | null;
 };
 
 type CouponRecord = {
@@ -66,6 +68,7 @@ type CouponRecord = {
   phone: string | null;
   pix: string | null;
   isActive: boolean;
+  firstPurchaseOnly: boolean;
   uses: number;
   revenue: number;
   createdAt: string;
@@ -116,6 +119,7 @@ type Attribution = {
   fbclid?: string;
   landingPage?: string;
   referrer?: string;
+  ref?: string;
 };
 
 const CART_KEY = "laFratellis.whatsappCart";
@@ -206,7 +210,8 @@ function captureAttribution() {
     params.has("utm_term") ||
     params.has("utm_content") ||
     params.has("gclid") ||
-    params.has("fbclid");
+    params.has("fbclid") ||
+    params.has("ref");
   const hasAttribution = hasUrlCampaign || Boolean(document.referrer);
 
   if (!hasAttribution) return;
@@ -221,6 +226,7 @@ function captureAttribution() {
     fbclid: params.get("fbclid") || undefined,
     landingPage: window.location.href,
     referrer: document.referrer || undefined,
+    ref: params.get("ref") || undefined,
   };
 
   if (hasUrlCampaign || !localStorage.getItem(ATTRIBUTION_KEY)) {
@@ -265,14 +271,23 @@ async function lookupCustomerByPhone(phone: string): Promise<Partial<Customer> |
   }
 }
 
-async function validateCouponCode(code: string): Promise<{ valid: boolean; discountPercent: number }> {
+async function validateCouponCode(
+  code: string,
+  phone: string,
+): Promise<{ valid: boolean; discountPercent: number; isPartner: boolean; reason?: string }> {
   try {
-    const response = await fetch(`/api/public/coupons?code=${encodeURIComponent(code)}`);
-    if (!response.ok) return { valid: false, discountPercent: 0 };
+    const query = phone ? `&phone=${encodeURIComponent(phone)}` : "";
+    const response = await fetch(`/api/public/coupons?code=${encodeURIComponent(code)}${query}`);
+    if (!response.ok) return { valid: false, discountPercent: 0, isPartner: false };
     const data = await response.json();
-    return { valid: Boolean(data.valid), discountPercent: Number(data.discountPercent ?? 0) };
+    return {
+      valid: Boolean(data.valid),
+      discountPercent: Number(data.discountPercent ?? 0),
+      isPartner: Boolean(data.isPartner),
+      reason: data.reason,
+    };
   } catch {
-    return { valid: false, discountPercent: 0 };
+    return { valid: false, discountPercent: 0, isPartner: false };
   }
 }
 
@@ -290,6 +305,7 @@ async function fetchAdminCoupons(): Promise<CouponRecord[]> {
     phone: c.phone || null,
     pix: c.pix || null,
     isActive: Boolean(c.isActive),
+    firstPurchaseOnly: Boolean(c.firstPurchaseOnly),
     uses: Number(c.uses ?? 0),
     revenue: Number(c.revenue ?? 0),
     createdAt: c.createdAt,
@@ -406,10 +422,13 @@ function normalizeOrder(order: any): SaleRecord {
       fbclid: order.fbclid || undefined,
       landingPage: order.landingPage || undefined,
       referrer: order.referrer || undefined,
+      ref: order.partnerRef || undefined,
     },
     status: order.status || "pending",
     couponCode: order.couponCode || null,
     partnerName: order.partnerName || null,
+    partnerRef: order.partnerRef || null,
+    partnerRefName: order.partnerRefName || null,
   };
 }
 
@@ -464,6 +483,7 @@ function App() {
   const [customer, setCustomer] = useState<Customer>(emptyCustomer);
   const [couponCode, setCouponCode] = useState("");
   const [couponDiscountPercent, setCouponDiscountPercent] = useState(0);
+  const [couponIsPartner, setCouponIsPartner] = useState(false);
   const [couponExpiresAt, setCouponExpiresAt] = useState<number | null>(null);
   const [couponSecondsLeft, setCouponSecondsLeft] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -530,7 +550,11 @@ function App() {
 
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
   const cartTotal = cart.reduce((total, item) => total + item.unitPrice * item.quantity, 0);
-  const isCouponActive = Boolean(couponExpiresAt && couponSecondsLeft > 0);
+  const cartHasPromo = cart.some((item) => item.itemType !== "product" && Boolean(item.promoTag));
+  // Partner coupons cannot stack on the "2 pizzas por R$89" promo — force the discount to zero if
+  // a promo item is in the cart, even when the coupon was applied before the promo was added.
+  const couponBlockedByPromo = couponIsPartner && cartHasPromo;
+  const isCouponActive = Boolean(couponExpiresAt && couponSecondsLeft > 0) && !couponBlockedByPromo;
   const couponDiscount = isCouponActive ? cartTotal * (couponDiscountPercent / 100) : 0;
   const checkoutTotal = Math.max(0, cartTotal - couponDiscount);
   const secondPizza = secondPizzaId ? getPizza(secondPizzaId) : undefined;
@@ -651,14 +675,27 @@ function App() {
     const code = couponCode.trim().toUpperCase();
     if (!code) return;
 
-    const result = await validateCouponCode(code);
+    const result = await validateCouponCode(code, customer.phone);
     if (!result.valid) {
-      showNotice("Cupom invalido");
+      if (result.reason === "phone_required") {
+        showNotice("Preencha seu WhatsApp para usar este cupom");
+      } else if (result.reason === "already_registered") {
+        showNotice("Cupom valido apenas para a primeira compra");
+      } else {
+        showNotice("Cupom invalido");
+      }
+      return;
+    }
+
+    // Partner coupons don't apply to the "2 pizzas por R$89" promo.
+    if (result.isPartner && cartHasPromo) {
+      showNotice("Cupom de parceiro nao vale para a promocao 2 pizzas por R$89");
       return;
     }
 
     setCouponCode(code);
     setCouponDiscountPercent(result.discountPercent);
+    setCouponIsPartner(result.isPartner);
     setCouponExpiresAt(Date.now() + COUPON_DURATION_SECONDS * 1000);
     showNotice(`Cupom aplicado: ${result.discountPercent}% de desconto`);
   };
@@ -897,12 +934,19 @@ function AdminPanel() {
     instagram: "",
     phone: "",
     pix: "",
+    firstPurchaseOnly: false,
   });
   const [couponError, setCouponError] = useState("");
   const [isSavingCoupon, setIsSavingCoupon] = useState(false);
 
   const totalRevenue = sales.reduce((sum, sale) => sum + sale.total, 0);
-  const savedContacts = sales.filter((sale) => sale.savedContact).length;
+  // Count each phone once — a customer who re-orders with a saved contact should not inflate the total.
+  const savedContacts = new Set(
+    sales
+      .filter((sale) => sale.savedContact)
+      .map((sale) => onlyDigits(sale.customer.phone))
+      .filter((phone) => phone.length > 0),
+  ).size;
 
   const loadAdminSales = async () => {
     setIsLoading(true);
@@ -999,6 +1043,7 @@ function AdminPanel() {
           instagram: newCoupon.instagram || null,
           phone: newCoupon.phone || null,
           pix: newCoupon.pix || null,
+          firstPurchaseOnly: newCoupon.firstPurchaseOnly,
         }),
       });
 
@@ -1008,7 +1053,7 @@ function AdminPanel() {
         return;
       }
 
-      setNewCoupon({ code: "", discountPercent: "10", referralPercent: "0", email: "", instagram: "", phone: "", pix: "" });
+      setNewCoupon({ code: "", discountPercent: "10", referralPercent: "0", email: "", instagram: "", phone: "", pix: "", firstPurchaseOnly: false });
       await loadCoupons();
     } catch {
       setCouponError("Erro ao criar cupom");
@@ -1201,6 +1246,9 @@ function AdminPanel() {
                     {sale.customer.reference && <span>Referencia: {sale.customer.reference}</span>}
                     {sale.couponCode && <span>Cupom: {sale.couponCode}</span>}
                     {sale.partnerName && <span>Parceiro: {sale.partnerName}</span>}
+                    {sale.partnerRef && (
+                      <span>Origem (link parceiro): {sale.partnerRefName || sale.partnerRef}</span>
+                    )}
                     <span>{describeAttribution(sale.attribution)}</span>
                   </div>
 
@@ -1308,6 +1356,14 @@ function AdminPanel() {
                 />
               </label>
             </div>
+            <label className="admin-done-toggle" style={{ marginTop: "8px" }}>
+              <input
+                type="checkbox"
+                checked={newCoupon.firstPurchaseOnly}
+                onChange={(e) => setNewCoupon({ ...newCoupon, firstPurchaseOnly: e.target.checked })}
+              />
+              <span>Cupom interno de primeira compra (so vale para quem ainda nao tem cadastro)</span>
+            </label>
             {couponError && <p className="admin-error">{couponError}</p>}
             <button className="admin-coupon-save" onClick={createCoupon} disabled={isSavingCoupon}>
               {isSavingCoupon ? "Salvando..." : "Criar cupom"}
@@ -1321,7 +1377,14 @@ function AdminPanel() {
               <article className={`admin-sale${coupon.isActive ? "" : " admin-sale--done"}`} key={coupon.id}>
                 <div className="admin-sale__top">
                   <div>
-                    <h3>{coupon.code}</h3>
+                    <h3>
+                      {coupon.code}
+                      {coupon.firstPurchaseOnly && (
+                        <span className="admin-badge admin-badge--pending" style={{ marginLeft: "8px" }}>
+                          Interno / 1a compra
+                        </span>
+                      )}
+                    </h3>
                     <p>Desconto: {coupon.discountPercent}% &nbsp;|&nbsp; Comissao: {coupon.referralPercent}%</p>
                   </div>
                   <div style={{ textAlign: "right" }}>

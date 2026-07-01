@@ -58,11 +58,13 @@ export default async function handler(req: any, res: any) {
           o.id, o."customerId", o.phone, o.name, o.address, o."addressNumber", o."addressReference",
           o.items, o."totalPrice", o."savedContact", o."campaignSource", o."campaignMedium",
           o."campaignName", o."campaignTerm", o."campaignContent", o.gclid, o.fbclid, o."landingPage",
-          o.referrer, o.status, o."couponCode", o."createdAt", o."updatedAt",
-          a.name AS "partnerName"
+          o.referrer, o.status, o."couponCode", o."partnerRef", o."createdAt", o."updatedAt",
+          a.name AS "partnerName",
+          pr.name AS "partnerRefName"
         FROM orders o
         LEFT JOIN coupons c ON c.code = o."couponCode"
         LEFT JOIN accounts a ON a.id = c."accountId"
+        LEFT JOIN accounts pr ON pr.username = o."partnerRef" AND pr.role = 'partner'
         ORDER BY o."createdAt" DESC
       `;
       res.status(200).json({ orders });
