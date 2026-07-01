@@ -26,11 +26,19 @@ export default async function handler(req: any, res: any) {
             COALESCE(p."pendingPayouts", 0)::int AS "pendingPayouts"
           FROM accounts a
           LEFT JOIN (
-            SELECT c."accountId", SUM(o."totalPrice") AS "totalSales", COUNT(o.id) AS "ordersCount"
-            FROM coupons c
-            JOIN orders o ON o."couponCode" = c.code
-            WHERE c."accountId" IS NOT NULL
-            GROUP BY c."accountId"
+            -- Sales attributed to a partner: via one of their coupons OR via their referral link
+            -- (partnerRef) with no coupon. Mirrors computeOpenPeriod so admin totals match the
+            -- partner's own report.
+            SELECT acc.id AS "accountId",
+                   SUM(o."totalPrice") AS "totalSales",
+                   COUNT(o.id) AS "ordersCount"
+            FROM accounts acc
+            JOIN orders o ON (
+              o."couponCode" IN (SELECT code FROM coupons WHERE "accountId" = acc.id)
+              OR (o."couponCode" IS NULL AND o."partnerRef" = acc.username)
+            )
+            WHERE acc.role = 'partner'
+            GROUP BY acc.id
           ) s ON s."accountId" = a.id
           LEFT JOIN (
             SELECT "accountId", COUNT(id) AS "pendingPayouts"

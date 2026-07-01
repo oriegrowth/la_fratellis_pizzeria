@@ -10,13 +10,18 @@ import {
 
 // Consolidated partner auth endpoint (Vercel Hobby plan caps a deployment at 12 functions).
 //   GET                  -> current logged-in partner profile ("me")
-//   POST ?action=signup  -> self-register (status pending, auto-login)
+//   POST ?action=signup  -> self-register (auto-approved active, auto-login)
 //   POST ?action=login   -> login
 //   POST ?action=logout  -> logout
+//   PATCH                -> update own profile (PIX key and contact fields)
 export default async function handler(req: any, res: any) {
   try {
     if (req.method === "GET") {
       return await me(req, res);
+    }
+
+    if (req.method === "PATCH") {
+      return await updateProfile(req, res);
     }
 
     if (req.method === "POST") {
@@ -65,6 +70,55 @@ async function me(req: any, res: any) {
     }
 
     res.status(200).json({ account: rows[0] });
+  } finally {
+    await sql.end();
+  }
+}
+
+// Lets a logged-in partner update their own payout details (PIX) and contact fields.
+async function updateProfile(req: any, res: any) {
+  const session = requireRole(req, res, "partner");
+  if (!session) return;
+
+  const body = parseBody(req.body) as any;
+
+  const databaseUrl = getDatabaseUrl();
+  if (!databaseUrl) {
+    res.status(500).json({ error: "DATABASE_URL nao configurada na Vercel" });
+    return;
+  }
+
+  const norm = (v: unknown) => {
+    if (v === undefined) return undefined; // field not sent -> keep current value
+    const s = String(v).trim();
+    return s.length > 0 ? s : null; // empty string -> clear the field
+  };
+
+  const pix = norm(body.pix);
+  const email = norm(body.email);
+  const phone = norm(body.phone);
+  const instagram = norm(body.instagram);
+
+  const sql = await getSql(databaseUrl);
+  try {
+    const updated = await sql`
+      UPDATE accounts SET
+        pix = ${pix === undefined ? sql`pix` : pix},
+        email = ${email === undefined ? sql`email` : email},
+        phone = ${phone === undefined ? sql`phone` : phone},
+        instagram = ${instagram === undefined ? sql`instagram` : instagram},
+        "updatedAt" = now()
+      WHERE id = ${session.accountId} AND role = 'partner'
+      RETURNING id, role, username, name, email, phone, instagram, pix,
+                "commissionPercent", status, "createdAt"
+    `;
+
+    if (updated.length === 0) {
+      res.status(404).json({ error: "Conta nao encontrada" });
+      return;
+    }
+
+    res.status(200).json({ account: updated[0] });
   } finally {
     await sql.end();
   }

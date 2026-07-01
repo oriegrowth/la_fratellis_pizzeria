@@ -21,12 +21,13 @@ export type OpenPeriod = {
  */
 export async function computeOpenPeriod(sql: any, accountId: number): Promise<OpenPeriod | null> {
   const accountRows = await sql`
-    SELECT "commissionPercent", "createdAt" FROM accounts
+    SELECT username, "commissionPercent", "createdAt" FROM accounts
     WHERE id = ${accountId} AND role = 'partner'
     LIMIT 1
   `;
   if (accountRows.length === 0) return null;
 
+  const username = accountRows[0].username;
   const commissionPercent = Number(accountRows[0].commissionPercent);
 
   const boundaryRows = await sql`
@@ -39,15 +40,21 @@ export async function computeOpenPeriod(sql: any, accountId: number): Promise<Op
     : new Date(accountRows[0].createdAt);
   const periodEnd = new Date();
 
+  // A sale is attributed to the partner when it either used one of the partner's coupons OR
+  // arrived through the partner's referral link (partnerRef) without any coupon. In the link case
+  // the customer paid full price, so the same commission percent naturally yields a larger amount.
   const salesRows = await sql`
     SELECT
       COUNT(o.id)::int AS "ordersCount",
       COALESCE(SUM(o."totalPrice"), 0)::numeric AS "totalSales"
     FROM orders o
-    JOIN coupons c ON c.code = o."couponCode"
-    WHERE c."accountId" = ${accountId}
-      AND o."createdAt" >= ${periodStart}
+    LEFT JOIN coupons c ON c.code = o."couponCode"
+    WHERE o."createdAt" >= ${periodStart}
       AND o."createdAt" <= ${periodEnd}
+      AND (
+        c."accountId" = ${accountId}
+        OR (o."couponCode" IS NULL AND o."partnerRef" = ${username})
+      )
   `;
 
   const totalSales = Number(salesRows[0].totalSales);

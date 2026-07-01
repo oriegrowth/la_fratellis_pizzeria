@@ -40,13 +40,19 @@ export default async function handler(req: any, res: any) {
         }
 
         // Per-order breakdown for the open period, so the partner sees which sales make up the total.
+        // Includes both coupon sales and referral-link sales (couponCode NULL, matched by partnerRef).
+        const account = await sql`SELECT username FROM accounts WHERE id = ${session.accountId} LIMIT 1`;
+        const username = account[0]?.username ?? "";
         const orders = await sql`
-          SELECT o.id, o.name, o."totalPrice", o."couponCode", o.status, o."createdAt"
+          SELECT o.id, o.name, o."totalPrice", o."couponCode", o."partnerRef", o.status, o."createdAt"
           FROM orders o
-          JOIN coupons c ON c.code = o."couponCode"
-          WHERE c."accountId" = ${session.accountId}
-            AND o."createdAt" >= ${period.periodStart}
+          LEFT JOIN coupons c ON c.code = o."couponCode"
+          WHERE o."createdAt" >= ${period.periodStart}
             AND o."createdAt" <= ${period.periodEnd}
+            AND (
+              c."accountId" = ${session.accountId}
+              OR (o."couponCode" IS NULL AND o."partnerRef" = ${username})
+            )
           ORDER BY o."createdAt" DESC
         `;
 

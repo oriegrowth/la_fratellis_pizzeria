@@ -31,7 +31,15 @@ type SalesReport = {
   ordersCount: number;
   commissionPercent: number;
   commissionAmount: number;
-  orders: Array<{ id: number; name: string; totalPrice: number; couponCode: string; status: string; createdAt: string }>;
+  orders: Array<{
+    id: number;
+    name: string;
+    totalPrice: number;
+    couponCode: string | null;
+    partnerRef: string | null;
+    status: string;
+    createdAt: string;
+  }>;
 };
 
 type Payout = {
@@ -81,6 +89,9 @@ export function PartnerPanel() {
   const [isSavingCoupon, setIsSavingCoupon] = useState(false);
   const [payoutMessage, setPayoutMessage] = useState("");
   const [linkCopied, setLinkCopied] = useState(false);
+  const [pixValue, setPixValue] = useState("");
+  const [pixSaving, setPixSaving] = useState(false);
+  const [pixMessage, setPixMessage] = useState("");
 
   const referralLink = account
     ? `${window.location.origin}/?ref=${encodeURIComponent(account.username)}`
@@ -159,11 +170,35 @@ export function PartnerPanel() {
 
   useEffect(() => {
     if (account) {
+      setPixValue(account.pix ?? "");
       void loadCoupons();
       void loadReport();
       void loadPayouts();
     }
   }, [account]);
+
+  const savePix = async () => {
+    setPixMessage("");
+    setPixSaving(true);
+    try {
+      const response = await fetch("/api/partners/auth", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pix: pixValue.trim() }),
+      });
+      if (!response.ok) {
+        setPixMessage(await readError(response, "Nao foi possivel salvar a chave PIX."));
+        return;
+      }
+      const data = await response.json();
+      setAccount(data.account);
+      setPixMessage("Chave PIX atualizada!");
+    } catch {
+      setPixMessage("Erro ao salvar a chave PIX.");
+    } finally {
+      setPixSaving(false);
+    }
+  };
 
   const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -510,7 +545,10 @@ export function PartnerPanel() {
                 <div className="admin-sale__top">
                   <div>
                     <h3>{order.name}</h3>
-                    <p>{new Date(order.createdAt).toLocaleString("pt-BR")} &nbsp;|&nbsp; Cupom: {order.couponCode}</p>
+                    <p>
+                      {new Date(order.createdAt).toLocaleString("pt-BR")} &nbsp;|&nbsp;{" "}
+                      {order.couponCode ? `Cupom: ${order.couponCode}` : "Origem: link (sem cupom)"}
+                    </p>
                   </div>
                   <strong>{money(Number(order.totalPrice))}</strong>
                 </div>
@@ -525,6 +563,27 @@ export function PartnerPanel() {
           <div className="admin-section-title">
             <h2>Pagamentos</h2>
             <button onClick={loadPayouts}>Atualizar</button>
+          </div>
+
+          <div className="admin-coupon-form">
+            <h3>Sua chave PIX</h3>
+            <p style={{ fontSize: "0.85rem", color: "#444" }}>
+              O saque e pago nesta chave. Atualize se voce mudou de conta.
+            </p>
+            <div className="admin-coupon-fields">
+              <label>
+                Chave PIX
+                <input
+                  value={pixValue}
+                  onChange={(e) => setPixValue(e.target.value)}
+                  placeholder="CPF, celular, email ou chave aleatoria"
+                />
+              </label>
+            </div>
+            {pixMessage && <p className="admin-error">{pixMessage}</p>}
+            <button className="admin-coupon-save" onClick={savePix} disabled={pixSaving}>
+              {pixSaving ? "Salvando..." : "Salvar chave PIX"}
+            </button>
           </div>
 
           <div className="admin-coupon-form">
