@@ -898,6 +898,7 @@ button {
   width: min(100%, 460px);
   display: grid;
   gap: 22px;
+  text-align: center;
 }
 
 .partner-auth__brand {
@@ -927,7 +928,9 @@ button {
 .partner-auth__perks li {
   display: flex;
   gap: 13px;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
+  text-align: left;
 }
 
 .partner-auth__perk-icon {
